@@ -624,11 +624,7 @@ d.exp1a.test = d.exp1a %>% select_test()
 d.exp1b.test = d.exp1b %>% select_test()
 ```
 
-Performance during the earliest exposure blocks was higher in Experiment 1b, compared to 1a, for the multi-talker condition, and to some extent for the control condition. What these two these two exposure conditions have in common is that they involve five exposure talkers, rather than one (for the same total number of stimuli), and thus more heterogenous stimuli. Other than this difference, performance seems pretty much identical across exposure conditions. 
-
-It is possible that differences in performanec during exposure reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition. The proportion of participants who used headsets increased most from Experiment 1a to 1b for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b).
-
-**The analyses of performance during the test phase therefore include predictor controlling for individual differences in performance during exposure**. Below, we describe how this control predictor was obtained.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
+Overall performance during exposure was rather comparable in Experiments 1a and 1b, as shown in the following figure. However, performance during the earliest exposure blocks was higher in Experiment 1b, compared to 1a, for the multi-talker and control conditions. What these two these two exposure conditions have in common is that they involve five exposure talkers, rather than one (for the same total number of stimuli), and thus more heterogenous stimuli. Performance was lower in Experiment 1b, compared to 1a, in the other two conditions, though these differences were smaller compared to the relative increase in performance in the control and multi-talker condition.
 
 ```{r, comparison exp1a exp1b}
 myGplot.defaults(type = "paper")
@@ -655,7 +651,7 @@ d.exp1ab.training %>%
 ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
 ```
 
-## Comparison of exposure phase in Experiments 1a and 1b [MORE TEXT HERE. EXPLAIN THE VARIOUS WAYS TO ANALYZE EXPOSURE DATA]
+This was also confirmed in a Bayesian mixed-effects logistic regression over the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial bin (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. The results are summarized and visualized below.
 
 ```{r, training models summary}
 my.priors = c(
@@ -676,6 +672,9 @@ m.brm.exp1ab.train.wExperiment = brm(IsCorrect ~ Cond.diff * sQuintile * Experim
                          family = bernoulli, cores = max.cores, chains = 4, 
                          warmup = 2000, iter = 4000, 
                          prior = my.priors, file = "../models/exp1ab.Training.wExperiment")
+plot(conditional_effects(m.brm.exp1ab.train.wExperiment, 
+                         # set to NULL to add uncertainty about all random effects
+                         re_formula = NA), ask = F)
 
 s = summary(m.brm.exp1ab.train.wExperiment)$fixed
 colnames(s) = c("Est.", "SE", "$CI_{lower}$", "$CI_{upper}$", "$\\hat{R}$", "Eff. samples (bulk)", "Eff. samples (tail)")
@@ -712,7 +711,19 @@ xhypotheses(
 )
 ```
 
-## Linear model of changes in performance during exposure ignoring experiment
+
+## Potential consequences of individual differences in *a priori* performance
+
+It is possible that differences in performance during exposure reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition. The proportion of participants who used headsets increased most from Experiment 1a to 1b for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
+
+Whatever the reason for these difference, it is possible that they confound the analyses of the test data. **The analyses of performance during the test phase therefore control for individual differences in performance during exposure**. Specifically, the analyses of the test data use an offset term that is based on the individual difference in performance at the onset of the exposure phase. Next, we describe how we estimated these individual differences.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
+
+
+## Estimating individual differences in performance at the onset of exposure
+
+Our goal was to estimate each individual's performance at the onset of the experiment, before effects of exposure could cause additional individual differences. This, we hope, can capture differences in quality of the audio equipment, differences in the degree to which participants paid attention, etc. We thus fit a Bayesian mixed-effects logistic regression, predicting transcription accuracy during exposure as a function of the exposure condition (*control*, *single talker*, *multi-talker*, and *talker-specific*), the trial bin (from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interaction. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. Critically, the model did not contain a predictor for experiment since we are interested in capturing individual differences in participants' performance across the entire sample of participants in Experiments 1a and 1b.
+
+In this model, the random intercept by participant provide an estimate of each participants' performance *relative to other participants in the same exposure group* (since exposure condition was included in the model) *during the first trial bin* (since the first trial bin is coded as 0). These random by-participant intercepts are then used as an offset in the analysis of the test data.
 
 ```{r}
 # Model without experiment as predictor
@@ -727,23 +738,11 @@ plot(conditional_effects(m.brm.exp1ab.train,
                          re_formula = NA), ask = F)
 ```
 
-## Monotonic model of changes in performance during exposure ignoring experiment
 
-To ascertain that the linearity assumption in the linear model does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). 
 
-```{r}
-m.brm.exp1ab.train.monotonic = brm(IsCorrect ~ Cond.diff * mo(Quintile) +
-                           (1 + Cond.diff | Sentence) + (1 + mo(Quintile) | WorkerID) + (1 | CurrentTalkerID), 
-                         data = d.exp1ab.training, 
-                         family = bernoulli, cores = max.cores, chains = 4, 
-                         warmup = 2000, iter = 4000, 
-                         prior = my.priors, file = "../models/exp1ab.Training.diff.monotonic")
-plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
-                         # set to NULL to add uncertainty about all random effects
-                         re_formula = NA), ask = F)
-```
 
-## Comparing different ways to correct for differences in exposure performance across experiments (TEXT NEEDS TO BE UPDATED)
+## How do our modeling assumptions affect the estimates of individual differences?
+
 ```{r add individual training performance to training and test data}
 ## Extract random by-subject intercepts from the various models
 get_random_intercepts = function(model) {
@@ -786,38 +785,9 @@ d.exp1a.test %<>% add_individual_performance()
 d.exp1b.test %<>% add_individual_performance()
 ```
 
+### Pooling of data across experiments without controlling for effects of experiment
 
-To capture these differences we calculate the participant-specific *a priori* performance in the first trial bin of exposure. These are by-participant random intercepts for the proportion of keywords correctly transcribed during the first bin of exposure, corrected for the exposure condition (fixed effect), by-item and by-current talker random intercepts. We estimate two such corrections---one by using data from only Experiment 1a or only Experiment 1b, the other while using using data from both experiments combined (without a main effect of experiment, because we are interested in catching *a priori* differences in participant-specific performance, rather than attributing it to the version of the experiment).
-
-These plots compare the two different approaches to correction for *a priori* performance of participants. In the remainder of this document, we use the second approach, the one based on fitting the correction model to **all** participants (i.e., both Experiments 1a and 1b, without an effect of Experiment). The plots shown here provide an intuition how this will affect the analyses of the test data in Experiments 1a and 1b, and how this differs across the four exposure conditions. The black shapes show the mean across participants in that condition and experiment.
-
-### Comparing the individual differences for the linear model depending on whether effects are estimated while controlling for experiment
-```{r, fig.height=6, fig.width=7}
-d.exp1ab.test %>%
-  dplyr::select(Experiment, WorkerID, Condition2, starts_with("individual_training_performance")) %>%
-  distinct() %>%
-  group_by(Experiment, WorkerID, Condition2) %>%
-  dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
-  { . ->> temp } %>%
-ggplot(aes(x = individual_training_performance.linear.wExperiment, y = individual_training_performance.linear, shape = Experiment, color = Experiment)) +
-  geom_abline(slope = 1) +
-  geom_point(alpha = .5) +
-  geom_point(data = temp %>%
-         group_by(Experiment, Condition2) %>%
-         dplyr::summarise_all(mean),
-         size = 3, alpha = 1, color = "black"
-  ) +
-  scale_x_continuous("by-participant adjustment based on Experiments 1a and 1b") +
-  scale_y_continuous("by-participant adjustment based on Experiments 1a *or* 1b only") +
-  facet_wrap(~ Condition2)
-
-cat("Zooming in ...\n")
-last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
-```
-
-### Comparing the individual differences for the linear and monotonic model depending (ignoring experiment)
-
-Finally, there is no evidence that the linearity assumption causes any bias in the estimation of individual differences, compared to the model that merely assumes monotonicity. The two models provide *very similar* estimates of participants' performance during the first exposure block. In the remainder of the analyses, we thus used the linear model because it is more common and readers are more familiar with it. Given the high similarity in the estimates, we never investigated whether individual differences based on the monotonic model would change any of the results for the test data.
+We first compared the estimates of individual differences against estimates derived from the full model that additionally contained experiment as a predictor, as well as its interaction with trial bin and exposure condition. The goal of this comparison is to see how our decision to *not* include experiment in the estimation of individual differences affects the estimated individual differences. The black shapes show the mean across participants in that condition and experiment.
 
 ```{r, fig.height=6, fig.width=7}
 d.exp1ab.test %>%
@@ -826,7 +796,7 @@ d.exp1ab.test %>%
   group_by(Experiment, WorkerID, Condition2) %>%
   dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
   { . ->> temp } %>%
-ggplot(aes(x = individual_training_performance.monotonic, y = individual_training_performance.linear, shape = Experiment, color = Experiment)) +
+ggplot(aes(x = individual_training_performance.linear, y = individual_training_performance.linear.wExperiment, shape = Experiment, color = Experiment)) +
   geom_abline(slope = 1) +
   geom_point(alpha = .5) +
   geom_point(data = temp %>%
@@ -834,17 +804,60 @@ ggplot(aes(x = individual_training_performance.monotonic, y = individual_trainin
          dplyr::summarise_all(mean),
          size = 3, alpha = 1, color = "black"
   ) +
-  scale_x_continuous("by-participant adjustment based on Experiments 1a and 1b") +
-  scale_y_continuous("by-participant adjustment based on Experiments 1a *or* 1b only") +
+  scale_x_continuous("by-participant adjustment from linear model") +
+  scale_y_continuous("by-participant adjustment from linear model + experiment") +
   facet_wrap(~ Condition2)
 
 cat("Zooming in ...\n")
 last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 ```
 
+### Assuming linear effects of exposure 
 
+Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial bins) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
+
+```{r}
+m.brm.exp1ab.train.monotonic = brm(IsCorrect ~ Cond.diff * mo(Quintile) +
+                           (1 + Cond.diff | Sentence) + (1 + mo(Quintile) | WorkerID) + (1 | CurrentTalkerID), 
+                         data = d.exp1ab.training, 
+                         family = bernoulli, cores = max.cores, chains = 4, 
+                         warmup = 2000, iter = 4000, 
+                         prior = my.priors, file = "../models/exp1ab.Training.diff.monotonic")
+plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
+                         # set to NULL to add uncertainty about all random effects
+                         re_formula = NA), ask = F)
+```
+
+Critically, there is no evidence that the linearity assumption causes any bias in the estimation of individual differences, compared to the model that merely assumes monotonicity. The two models provide *very similar* estimates of participants' performance during the first exposure block:
+
+```{r, fig.height=6, fig.width=7}
+d.exp1ab.test %>%
+  dplyr::select(Experiment, WorkerID, Condition2, starts_with("individual_training_performance")) %>%
+  distinct() %>%
+  group_by(Experiment, WorkerID, Condition2) %>%
+  dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
+  { . ->> temp } %>%
+ggplot(aes(x = individual_training_performance.linear, y = individual_training_performance.monotonic, shape = Experiment, color = Experiment)) +
+  geom_abline(slope = 1) +
+  geom_point(alpha = .5) +
+  geom_point(data = temp %>%
+         group_by(Experiment, Condition2) %>%
+         dplyr::summarise_all(mean),
+         size = 3, alpha = 1, color = "black"
+  ) +
+  scale_x_continuous("by-participant adjustment from linear model") +
+  scale_y_continuous("by-participant adjustment from monotonic model") +
+  facet_wrap(~ Condition2)
+
+cat("Zooming in ...\n")
+last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
+```
+
+In the remainder of the analyses, we thus used the linear model because it is more common and readers are more familiar with it. Given the high similarity in the estimates, we never investigated whether individual differences based on the monotonic model would change any of the results for the test data.
 
 ## Predicting individual difference during test from individual differences during training
+
+In the analyses of the test data, we discount for the individual differences in performance at the onset of test. We do so by using the random by-participant intercept from the linear model as **offset** in the mixed-effects logistic regression of the test data. It was therefore important to test whether individual differences during exposure actually predict individual differences during test. To this end, we fit a Bayesian mixed-effect logistic regression, predicting accuracy during test as a function of the individual differences estimated from the linear model. The model also contained random intercepts by participant and item. This revealed a very strong effect of individual differences during exposure on performance during test.
 
 ```{r}
 # SDs
@@ -871,15 +884,49 @@ my.priors = c(
     # prior(lkj(1), class = cor)
 )
 
-m.exp1a.test.fromTraining <- brm(IsCorrect ~ 
+m.exp1ab.test.fromTraining <- brm(IsCorrect ~ 
                            1 + individual_training_performance.linear_s +
                            (1 | Sentence) + (1 | WorkerID),  
                          data = d.exp1ab.test %>% standardize(), 
                          family = bernoulli, cores = 4, chains = 4, 
                          warmup = nsamples.warmup, iter = nsamples.total, 
-                         prior = my.priors, file = "../models/exp1a.Test.fromIndividualTrainingDifferences")
-summary(m.exp1a.test.fromTraining)
+                         prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences")
+hypothesis(m.exp1ab.test.fromTraining, "individual_training_performance.linear_s > 0")
 ```
+The effect of this predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance (SD = .60):
+
+```{r}
+summary(m.exp1ab.test.fromTraining)
+```
+
+compared to a model that did not (SD = .74): 
+
+```{r}
+# Estimate the by-subject variance during test if performance at onset of training is *not* taken into account:
+m.exp1ab.test.justIntercept <- brm(IsCorrect ~ 
+                           1 + 
+                           (1 | Sentence) + (1 | WorkerID),  
+                         data = d.exp1ab.test %>% standardize(), 
+                         family = bernoulli, cores = 4, chains = 4, 
+                         warmup = nsamples.warmup, iter = nsamples.total, 
+                         prior = my.priors[-1,], file = "../models/exp1ab.Test.justIntercept")
+summary(m.exp1ab.test.justIntercept)
+```
+In other words, individual differences in performance during training relative to other participants that see the same exposure materials are indeed highly predictive of individual differences in performance during test. This highlights the potential that even small imbalanced in these individual differences across the four conditions in Experiments 1a and 1b could make the test results across the two experiments appear less similar than they are (once individual differences are taken into account).
+
+If we translate the estimated coefficient back into the un-standardized individual differences at the onset of the exposure block (`individual_training_performance.linear`) this yields the following estimates for the relation of individual differences in performance at the onset of training and the performance during test:
+
+```{r}
+d.exp1ab.test %>%
+  dplyr::select(individual_training_performance.linear) %>%
+  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
+  as.numeric() %>%
+  (function(x) summary(m.exp1ab.test.fromTraining)$fixed[2,c(1,3:4)] / x)
+```
+
+In the analysis of the test data, we thus include the individual differences in performance at the onset of exposure as an offset term. This sets the coefficient of this effect to 1, higher than the effect observed here. We did so based on the *a priori* consideration that the task during test is the same as during exposure so that any individual differences in the log-odds of accurate transcriptions during exposure (compared to other participants who heard the exact same stimuli) should translate to the exact same difference in log-odds of accurate transcriptions during test.
+
+
 
 
 

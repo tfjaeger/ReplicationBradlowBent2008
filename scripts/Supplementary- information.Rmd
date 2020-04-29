@@ -1,0 +1,2283 @@
+---
+title: "Supplementary information for Xie et al. Cross-talker generalization in foreign-accented speech perception"
+author: "Florian Jaeger, Linda Liu, Xin Xie"
+date: \today
+geometry: margin=2cm
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{siunitx}
+  - \usepackage{tabto}
+  - \usepackage{soul}
+  - \usepackage{xcolor}
+  - \usepackage{placeins}
+  - \usepackage{lscape}
+  - \newcommand{\blandscape}{\begin{landscape}}
+  - \newcommand{\elandscape}{\end{landscape}}
+  - \makeatletter\renewcommand{\fps@table}{!ht}\makeatother
+  - \setstcolor{red}
+  - \usepackage{sectsty}
+  - \sectionfont{\color{blue}} 
+  - \subsectionfont{\color{blue}}
+  - \subsubsectionfont{\color{darkgray}}
+output:
+  pdf_document: 
+    fig_caption: yes
+    fig_width: 7
+    keep_tex: yes
+    latex_engine: xelatex
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+  fontsize: 10pt
+---
+
+
+
+```{r set-options, echo=FALSE, cache=FALSE, warning=FALSE, message=FALSE}
+library(knitr)
+
+opts_chunk$set(dev = 'pdf',
+               comment="", 
+               echo=FALSE, warning=FALSE, message=FALSE,
+               cache=TRUE, 
+               size="footnotesize",
+               tidy.opts = list(width.cutoff = 200),
+               fig.width = 8, fig.height = 4.5, fig.align = "center")
+
+def.chunk.hook  <- knitr::knit_hooks$get("chunk")
+knitr::knit_hooks$set(chunk = function(x, options) {
+  x <- def.chunk.hook(x, options)
+  ifelse(options$size != "normalsize", paste0("\n \\", options$size,"\n\n", x, "\n\n \\normalsize"), x)
+})
+
+color_block = function(color) {
+  function(x, options) sprintf('\\color{%s}\\begin{verbatim}%s\\end{verbatim}\\color{black}',
+                               color, x)
+}
+knitr::knit_hooks$set(error = color_block('red'))
+knitr::knit_hooks$set(warning = color_block('orange'))
+```
+
+
+# TO DO
+ + SHOULD POSTERIOR SAMPLES BE WEIGHTED BY LOG-P?
+ + CHECK WHETHER SET COULD MAYBE ACCOUNT FOR BY-TEST TALKER DIFFERENCES.
+ + CHECK WHAT COEFFICIENT ONE WOULD GET BY FITTING TEST DATA FROM BOTH EXPERIMENTS (PERHAPS SEPARATELY BY CONDITION) PREDICED FROM INDIVIDUAL DIFFERENCES IN TRAINING, AND THEN USE THAT COEFFICIENT FOR OFFSET. 
+
+```{r functions, echo=FALSE}
+library(tidyverse)
+library(magrittr)
+library(modelr)
+library(broom)
+library(cowplot)
+#library(grid)
+#library(gridExtra)
+#library(gtools)
+#library(ggstance)
+library(ggridges)
+#library(ggthemes)
+library(scales)
+library(viridis)
+#library(RColorBrewer)
+library(lme4)
+library(brms)
+# library(brmstools)
+library(bridgesampling)
+library(tidybayes)
+# library(shinystan)
+library(bayesplot)
+library(actuar)
+library(fitdistrplus)
+library(pBrackets)
+library(lubridate)
+
+## ------------------------------ ##
+## functions and constants 
+## ------------------------------ ##
+path <- ""
+max.cores = min(parallel::detectCores(), 8)
+options(mc.cores = max.cores, width = 1000)
+source(paste0(path, "../scripts/functions.R"))
+
+dotplot_binwidth = 0.02
+levels.exposure = c("Control", "Single talker", "Multi-talker", "Talker-specific")
+colors.exposure = c("#B1B1B1", "#1F78B4", "#33A02C", "#E31A1C")
+colors.model = viridis::viridis_pal()(3)  # without by-talker effects, by test talker, by exposure-test talker combinations
+
+
+standardize = function(dataset) {
+  dataset %>%
+    mutate_at(vars(starts_with("individual_training_performance")),
+      # Standardize continuous predictor (following Gelman, 2008)
+      .funs = list("s" = function(x) (x - mean(x)) / (2 * sd(x)) )
+    )
+}
+
+
+defineContrasts = function(dataset) {
+  require(dplyr)
+  require(magrittr)
+  
+  dataset %<>%
+    mutate(
+      # For the sake of continuity (previously run models), reverse factor order here
+      # so that coding stays consistent across models and data. Note that this means 
+      # that the ordering of Condition2 (used in e.g., empirical plots) is the reverse
+      # of the order of Cond.treat and Cond.diff
+      Cond.treat = factor(Condition2, levels = rev(levels.exposure)),
+      Cond.treatTS.vs.CNTL = case_when(
+        Cond.treat == "Talker-specific" ~ 1,
+        Cond.treat == "Multi-talker" ~ 0,
+        Cond.treat == "Single talker" ~ 0,
+        T ~ 0
+      ),
+      Cond.treatMT.vs.CNTL = case_when(
+        Cond.treat == "Talker-specific" ~ 0,
+        Cond.treat == "Multi-talker" ~ 1,
+        Cond.treat == "Single talker" ~ 0,
+        T ~ 0
+      ),
+      Cond.treatST.vs.CNTL = case_when(
+        Cond.treat == "Talker-specific" ~ 0,
+        Cond.treat == "Multi-talker" ~ 0,
+        Cond.treat == "Single talker" ~ 1,
+        T ~ 0
+      ),
+      # For the sake of continuity (previously run models), reverse factor order here
+      Cond.diff = factor(Condition2, levels = rev(levels.exposure)),
+      Cond.diffTS.vs.MT = case_when(
+        Cond.diff == "Talker-specific" ~ 3/4,
+        Cond.diff == "Multi-talker" ~ -1/4,
+        Cond.diff == "Single talker" ~ -1/4,
+        T ~ -1/4
+      ),
+      Cond.diffMT.vs.ST = case_when(
+        Cond.diff == "Talker-specific" ~ 1/2,
+        Cond.diff == "Multi-talker" ~ 1/2,
+        Cond.diff == "Single talker" ~ -1/2,
+        T ~ -1/2
+      ),
+      Cond.diffST.vs.CNTL = case_when(
+        Cond.diff == "Talker-specific" ~ 1/4,
+        Cond.diff == "Multi-talker" ~ 1/4,
+        Cond.diff == "Single talker" ~ 1/4,
+        T ~ -3/4
+      )
+    )
+
+  # set sliding treaterence coding
+  contrasts(dataset$Cond.treat) = cbind("TS.vs.CNTL" = c(1, 0, 0, 0),
+                                        "MT.vs.CNTL" = c(0, 1, 0, 0),
+                                        "ST.vs.CNTL" = c(0, 0, 1, 0))
+  # set sliding difference coding
+  contrasts(dataset$Cond.diff) = cbind("TS.vs.MT" = c(3/4, -1/4, -1/4, -1/4),
+                                       "MT.vs.ST" = c(1/2, 1/2, -1/2, -1/2),
+                                       "ST.vs.CNTL" = c(1/4, 1/4, 1/4, -3/4))
+  
+  return(dataset) 
+}
+
+
+table_3effects = function(model.diff, #model.treat = NULL, 
+                          scope = c("standard", "coef", "ranef")[1],
+                          group = c("", "TestTalkerID", "ExposureTestTalkerID")[1], 
+                          labels = NULL, format = "markdown",
+                          ...
+) {
+  if (group == "") assertthat::assert_that(scope == "standard")
+  if (group != "") assertthat::assert_that(scope %in% c("coef", "ranef"))
+
+  xhypotheses(
+  list(
+    hypothesis(model.diff, "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+    hypothesis(model.diff, "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+    hypothesis(model.diff, "Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+    hypothesis(model.diff, "Cond.diffMT.vs.ST > 0", class = "b", scope = scope, group = group)
+  ),
+  labels = rep(
+    c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST"),
+    if (scope == "standard") 1 else 4),
+  ...
+)
+  
+}
+
+
+plot_3effects = function(model.diff, title, add_plot = NULL, 
+                         color = "black", fill = "lightgray", alpha = .5,
+                         by = c("none", "TestTalker", "ExposureTestTalker")[1]
+) {
+  # Names of effects (ordered in the way they are meant to be displayed later)
+  effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
+
+  d.m = model.diff %>%
+    gather_draws(b_Cond.diffST.vs.CNTL, b_Cond.diffMT.vs.ST, b_Cond.diffTS.vs.MT) %>%
+    ungroup() %>%
+    rename(condition = .variable) %>%
+    mutate(condition = str_replace(condition, "b_", "")) %>%
+    # If effects are to be conditioned on test and/or exposure talker, add in those 
+    # effects.
+    { 
+      if (by %in% c("TestTalker", "ExposureTestTalker")) {
+        left_join(
+          .,
+          model.diff %>%
+            spread_draws(r_TestTalkerID[TestTalker,condition])) %>%
+          mutate(
+            .value = .value + r_TestTalkerID,
+            r_TestTalkerID = NULL
+          )
+      } else . 
+    } %>% 
+    # If effects are to be conditioned on combination of test and exposure talker, add 
+    # in those effects.
+    { 
+      if (by == "ExposureTestTalker") {
+        left_join(
+          .,
+          model.diff %>%
+            spread_draws(`r_TestTalkerID:TrainingTalkerID`[ExposureTestTalker,condition])) %>%
+          mutate(
+            .value = .value + `r_TestTalkerID:TrainingTalkerID`,
+            `r_TestTalkerID:TrainingTalkerID` = NULL
+          )
+      } else . 
+    } %>%
+    pivot_wider(
+      names_from = condition,
+      values_from = .value,
+    ) %>%
+    mutate(
+      Cond.TS.vs.CNTL = Cond.diffST.vs.CNTL + Cond.diffMT.vs.ST + Cond.diffTS.vs.MT,
+      Cond.MT.vs.CNTL = Cond.diffST.vs.CNTL + Cond.diffMT.vs.ST,
+      Cond.ST.vs.CNTL = Cond.diffST.vs.CNTL,
+      Cond.MT.vs.ST = Cond.diffMT.vs.ST
+    ) %>%
+    dplyr::select(-starts_with("Cond.diff")) %>%
+    pivot_longer(
+      starts_with("Cond."),
+      names_to = "condition",
+      values_to = ".value"
+    ) %>%
+    mutate(condition = factor(condition, 
+                              levels = effect.names))
+  
+  # If not plot was provided, make one. Otherwise add to provided plot.
+  if (is.null(add_plot)) {
+    p = d.m %>%
+      ggplot(aes(y = condition, x = .value)) +
+      scale_x_continuous(
+        expression(paste(hat(beta)," (in log-odds)"))
+      ) +
+      scale_y_discrete("",
+                       breaks = effect.names,
+                       labels = c(
+                         expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle talker")),
+                         expression(paste(bold("Question 2   "), "Single talker vs.\nControl")),
+                         expression(paste(bold("Question 1   "), "Multi-talker vs.\nControl")),
+                         expression(paste(bold("Adaptation   "), "Talker-specific vs.\nControl"))
+                       )
+      ) + 
+      ggtitle(title) +
+      coord_cartesian(
+        xlim = c(-.3, 1.3),
+        ylim = c(.99, 4.8)
+      ) 
+  } else {
+    p = add_plot
+  }
+  
+  p = p + 
+    geom_halfeyeh(
+      data = d.m,
+      color = color, alpha = alpha, fill = fill, scale = .8, .width = c(0.50, 0.95)) + 
+    { if (by == "TestTalker") facet_grid( . ~ TestTalker) } +
+    { if (by == "ExposureTestTalker") facet_wrap(~ ExposureTestTalker) } +
+    geom_vline(xintercept = 0, linetype = 2) +
+    theme_bw() +
+    theme(axis.text.y = element_text(hjust=0))
+  
+  return(p)
+}
+
+
+plot_3effects_var = function(
+  models.diff, title = NULL, 
+  fills = viridis::viridis_pal()(length(models.diff)), alphas = rep(.5, length(models.diff)),
+  add_plot = T,
+  rel_widths = c(.7, .3)
+) {
+  # Names of effects (ordered in the way they are meant to be displayed later)
+  effect.names = rev(c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL"))
+
+  # Check whether model names match. If no models are provided, number models.
+  if (is.null(names(models.diff))) {
+    names(models.diff) = as.character(1:length(models.diff))
+  } 
+  
+  p = models.diff %>%                    
+    purrr::map(function(x) 
+      gather_draws(x, b_Cond.diffST.vs.CNTL, b_Cond.diffMT.vs.ST, b_Cond.diffTS.vs.MT)) %>%
+    bind_rows(.id = "Model") %>%
+    ungroup() %>%
+    rename(condition = .variable) %>%
+    mutate(condition = str_replace(condition, "b_", "")) %>%
+    pivot_wider(
+      names_from = condition,
+      values_from = .value,
+    ) %>%
+    mutate(
+      Cond.TS.vs.CNTL = Cond.diffST.vs.CNTL + Cond.diffMT.vs.ST + Cond.diffTS.vs.MT,
+      Cond.MT.vs.CNTL = Cond.diffST.vs.CNTL + Cond.diffMT.vs.ST,
+      Cond.ST.vs.CNTL = Cond.diffST.vs.CNTL,
+      Cond.MT.vs.ST = Cond.diffMT.vs.ST
+    ) %>%
+    dplyr::select(-starts_with("Cond.diff")) %>%
+    pivot_longer(
+      starts_with("Cond."),
+      names_to = "condition",
+      values_to = ".value"
+    ) %>%
+    mutate(
+      Model = factor(Model, levels = names(models.diff)),
+      condition = factor(condition, 
+                         levels = effect.names)) %>%
+    group_by(Model, condition) %>%
+    dplyr::summarise(.value = sd(.value)) %>%
+    ggplot(aes(x = Model, y = .value, fill = Model)) +
+    geom_bar(stat = "identity") +
+    scale_x_discrete(name = NULL, labels = NULL) +
+    scale_y_continuous("Standard error of effect") +
+    scale_fill_manual(values = fills) +
+    ggtitle(title) +
+    facet_wrap(~ condition, ncol = 1) +
+    theme_bw() + 
+    theme(
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      panel.grid = element_blank(),
+      axis.text.x = element_text(angle = 22.5),
+      legend.position = "right")
+  
+  if (!is.null(add_plot)) {
+    p = cowplot::plot_grid(
+      plotlist = list(add_plot, p), nrow = 1,
+      rel_widths = rel_widths,
+      align = "vh", axis = "tb"
+    )
+  }
+  
+  return(p)
+}
+
+# note that units here are "npc", the only unit (besides physical units) that makes sense
+# when annotating the plot panel in ggplot2 (since we have no access to 
+# native units)
+b1 <- bracketsGrob(0.33, 0.05, 0, 0.05, h=0.05, lwd=2, col="black")
+b2 <- bracketsGrob(1, 0.05, 0.66, 0.05, h=0.05,  lwd=2, col="black")
+```
+
+```{r load data, echo = FALSE}
+## ------------------------------ ##
+## load data 
+## ------------------------------ ##
+d.full = readRDS(paste0(path, "../data/replication_data_all-February-2019.RDS"))
+
+# in case any duplicate lines are in the file (there shouldn't be)
+# We're also excluding the 34 subjects in Exp 1b (TS and CNTL) that had been excluded by Linda based on some criterion
+# we haven't been able to recover (we are excluding them so as to not introduce new choices into our analysis).
+d.full %<>% 
+  distinct() %>%
+  filter(!(WorkerID %in% c("2180f41a8725fe745fa12e517d4e3d85", "f3c7f9107260b28295a44ba112135086", "6711a123d308555813e8a1ce45297ac9","1f226fd6f8d8b9dd70f8d83eeb672b7c","6ed0824af9c7713a6bca62d7ed1b5e08", "d02fca1f212fe59588b0e67a6a57d582", "68d947314c3afdbeacc938e82fd4d69f", "b98be9d1f206a0dec29c5e6b86939e38", "e4f1027fa1140a91ff8040577a5fd780", "99b977df227b9a61fa9cf7e45403e6f3", "deca13132e8a8052d95914441bf3a728", "5381381c1ee08125e20660918b4a78b2", "9bd5109bcda73b775310c230af8d2718", "6e424818fb2e6bc8687e67f5128bea78", "a5e46b3a3dcba160b93403a4e157367a", "a7536ad08257c77bbe46231129a50794", "729b851a9644dcb5d2c79bca9d819422", "3d8bc6c8b092148daa39e0894c5f390a", "330891747efeb533e4283f9b4e1d8a3c", "d0cf4bf7f9a5478431ad28bab305f2e9", "4c6e2df9c69e761b76ad116ac804e8cd", "950331449cb75037d7ed3a9694b6b2e1", "1398467a82982f9950ffc46a0e179538", "1ba2ec8fec36eb6aea2486ab7d4c28b1", "240993087e1f551c412efa7fecfd8164", "fe6be26d6b036511b11c5908a1fe0370", "ba6b541b2d47757e02b0cf34ff0c4cd9", "b8f46c628ccb07d23cc7bbe26a01c918", "06c41dc0f05a4ab365a49b80429cdb57", "26d1bcf1b5fcf16d4687b711c24e9211", "0e8b277766f49367eb7fdbd55b53135e", "9f3fd867d4b01febd97869e2f4d6c4ad", "5b3d8d04f9987fea654ec4f9e83e7e97", "1c79496522986c45c96ec13b51783217")))
+
+## ------------------------------ ##
+## variable clean up
+## ------------------------------ ##
+d.full %<>% 
+  mutate_at(
+    c("Sentence", "WorkerID", "TestTalkerID", "PartOfExp", "PresentationBlock", "Condition", 
+      "TrainingTestSet", "TestTalkerName", "SentenceID",
+      "TrainingTalkerID", "CurrentTalkerID", "ExpRep_subj", "Exp1_subj", "Exp2_subj", "Exp3_subj"),
+    as.factor
+  ) %>%
+  mutate(
+    TalkerID.gen = paste("Test talker", as.character(TestTalkerID)),
+    Condition2 = factor(Condition2, levels = levels.exposure)
+  )
+```
+
+```{r, new transcription coding, echo = FALSE}
+# Copy column over so we still have a column that will have all the keywords together
+d.full %<>%
+  mutate(Keyword = Keywords) %>%
+  tidyr::separate_rows(Keyword, sep = ",") %>%
+  mutate(
+    Keyword = trimws(Keyword),
+    TranscriptionStripped = gsub("[[:punct:]]", "", tolower(as.character(Transcription))),
+    IsCorrect =  as.integer(!is.na(mapply(match,
+                                          Keyword,
+                                          strsplit(TranscriptionStripped, ' '))))
+  )
+
+# Update Propkeywords correct
+correct.keywords = d.full %>%
+  group_by(WorkerID, Sentence) %>%
+  summarise(NumKeywordsCorrect = sum(IsCorrect))
+
+d.full %<>% 
+  left_join(correct.keywords) %>%
+  mutate(PropKeywordsCorrect = NumKeywordsCorrect / NumKeywords)
+```
+
+```{r, subsetting of data, echo=F}
+## ------------------------------ ##
+# Define subsets in order to specify contrast coding for factors with appropriate leveling
+# Note: The Exp1_subj variables already take into account rejections
+## ------------------------------ ##
+
+# Experiment pilot (formerly 1: ts vs cntl original)
+d.pilot <- d.full %>%
+  filter(Exp1_subj == "yes") %>%
+  droplevels(.) %>%
+  mutate(Experiment = "Pilot")
+
+# Experiment 1a (formerly 2a): ts, cntl, st, mt
+d.exp1a <- d.full %>%
+  filter(Exp2_subj == "yes") %>%
+  droplevels(.) %>%
+  mutate(Experiment = "1a") %>%
+  # Repair exposure talker ID
+  arrange(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp, Trial) %>%
+  # Get the unique order of exposure talkers (for this, we group by part of experiment)
+  group_by(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp) %>%
+  mutate(TrainingTalkerID = paste(unique(CurrentTalkerID), collapse = "__")) %>%
+  # Now make sure that this information is shared at the worker ID level (so that it will
+  # be available for the test trials)
+  group_by(Experiment, Condition2, TrainingTestSet, ListNum, WorkerID) %>%
+  # The following works only because we've sorted (a.o. things) by PartOfExp above, which means 
+  # that test trials come before training trials
+  mutate(
+    TrainingTalkerID = last(TrainingTalkerID),
+    TestTalkerID = first(CurrentTalkerID),
+    FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
+  ungroup() %>%
+  mutate_at(c("TrainingTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
+  droplevels()
+
+### Experiment 1b (formerly 2b or Replication: Full rep of Exp2)
+d.exp1b <- d.full %>%
+  filter(ExpRep_subj == "yes") %>%
+  droplevels(.) %>%
+  mutate(Experiment = "1b") %>%
+  # Repair exposure talker ID
+  arrange(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp, Trial) %>%
+  # Get the unique order of exposure talkers (for this, we group by part of experiment)
+  group_by(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp) %>%
+  mutate(TrainingTalkerID = paste(unique(CurrentTalkerID), collapse = "__")) %>%
+  # Now make sure that this information is shared at the worker ID level (so that it will
+  # be available for the test trials)
+  group_by(Experiment, Condition2, TrainingTestSet, ListNum, WorkerID) %>%
+  # The following works only because we've sorted (a.o. things) by PartOfExp above, which means 
+  # that test trials come before training trials
+  mutate(
+    TrainingTalkerID = last(TrainingTalkerID),
+    TestTalkerID = first(CurrentTalkerID),
+    FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
+  ungroup() %>%
+  mutate_at(c("TrainingTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
+  droplevels()
+
+# Keep only distinct workers in the combined data frame.
+d.exp1ab = rbind(d.exp1a, d.exp1b) %>%
+  group_by(WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE)
+```
+
+# README FIRST
+This markdown document presents all analyses reported in the paper, and provides additional tables, visualization, and analyses. We have intentionally *not* set a random seed for our analyses. Thus, the specific numbers for the Bayesian models might differ from those reported in the paper. Over the course of our analysis, we conducted all analyses repeatedly and never noticed changes in the qualitative results.
+
+**Note that the analyses in this markdown document might take several days to complete.**
+
+We begin by reporting basic information about participants and item balancing, demographics and audio equipment. We then present analyses of the training and test data, including full reports of all models referred to in the main text of the paper, as well as auxiliary analyses that support the conclusions offered in the main text.
+
+# Participant and item counts by conditions
+
+## Participants across experiments (after exclusions)
+
+### Pilot experiment
+```{r number of subjects, echo=F}
+d.pilot %>% 
+  filter(PartOfExp == "test") %>%
+  group_by(Condition2, TestTalkerID, Experiment) %>% 
+  distinct(WorkerID) %>%
+  xtabs(~TestTalkerID + Condition2 + Experiment, .)
+```
+
+### Experiments 1a and 1b
+
+Level at which had to balance both experiments (unique combinations of exposure condition and test talker):
+```{r}
+d.exp1ab %>% 
+  filter(PartOfExp == "test") %>%
+  group_by(Condition2, TestTalkerName, Experiment) %>% 
+  distinct(WorkerID) %>%
+  xtabs(~TestTalkerName + Condition2 + Experiment, .)
+```
+
+All unique combinations of exposure condition, exposure talker order, and test talker (i.e., all experimental lists). The order of exposure talkers (only relevant in the control and multi-talker conditions) was randomized. 
+
+Experiment 1a:
+
+```{r}
+d.exp1a %>%
+  dplyr::select(Condition2, TestTalkerName, TrainingTalkerID, WorkerID) %>%
+  distinct() %>%
+  xtabs(~ TrainingTalkerID + TestTalkerName + Condition2, data = .)
+```
+
+Experiment 1b:
+
+```{r}
+d.exp1b %>%
+  dplyr::select(Condition2, TestTalkerName, TrainingTalkerID, WorkerID) %>%
+  distinct() %>%
+  xtabs(~ TrainingTalkerID + TestTalkerName + Condition2, data = .)
+```
+
+## Keywords per participants across experiments (after exclusions)
+
+```{r keywords per subject, echo=F}
+d.pilot %>% 
+  group_by(Experiment, Condition2, TrainingTestSet, WorkerID, PartOfExp) %>% 
+  summarise(NumOfKeywords = length(WorkerID)) %>%
+  group_by(Experiment, TrainingTestSet, Condition2, PartOfExp) %>% 
+  summarise(MeanNumOfKeywords = mean(NumOfKeywords))
+
+d.exp1ab %>% 
+  group_by(Experiment, Condition2, TrainingTestSet, WorkerID, PartOfExp) %>% 
+  summarise(NumOfKeywords = length(WorkerID)) %>%
+  group_by(Experiment, TrainingTestSet, Condition2, PartOfExp) %>% 
+  summarise(MeanNumOfKeywords = mean(NumOfKeywords))
+```
+
+## Demographics of participants
+
+```{r demographic information}
+myXtabs = function (formula, data) { print(round(prop.table(xtabs(formula = formula, data = data), margin = 2), 2)); cat("\n\n") }
+# Participant gender distribution
+d.exp1ab %>% 
+  filter(PartOfExp == "test") %>%
+  group_by(Condition2, TestTalkerID, Experiment, 
+           Answer.rsrb.age, Answer.rsrb.race, Answer.rsrb.sex, Answer.rsrb.raceother, Answer.rsrb.ethnicity) %>% 
+  distinct(WorkerID) %T>%
+  myXtabs( ~ Answer.rsrb.sex + Experiment, .) %T>%
+  myXtabs( ~ Answer.rsrb.race + Experiment, .) %T>%
+  myXtabs( ~ Answer.rsrb.ethnicity + Experiment, .) %>%
+  group_by(Experiment) %>% 
+  dplyr::summarise(
+    meanAge = mean(Answer.rsrb.age, na.rm = T),
+    sdAge = sd(Answer.rsrb.age, na.rm = T),
+    declined = length(which(is.na(Answer.rsrb.age))) / length(Answer.rsrb.age)
+  )
+```
+
+## Audio equipment
+
+```{r audio information}
+d.exp1ab %>%
+  group_by(Condition2, Experiment) %>% 
+  distinct(WorkerID, .keep_all = TRUE) %>%
+  xtabs(~ Condition2 + AudioType2_WoreHeadphones + Experiment, .)
+#xtabs(~ TalkerID + Condition2 + TestTalkerID + ListNum + TrainingTestSet,.) #To find what to balance
+```
+
+
+
+
+
+
+# Performance during exposure phase in Experiments 1a and 1b
+
+```{r}
+select_training = . %>%
+  filter(PartOfExp == "training") %>%
+  defineContrasts() %>%
+  mutate(
+    Quintile = as.numeric(cut(Trial, breaks = 5, labels = seq(1,5))) - 1,
+    sQuintile = Quintile / 2*sd(Quintile))
+
+select_test = . %>%
+  filter(PartOfExp == "test") %>%
+  defineContrasts()
+  
+# Split training and test data for Experiments 1a and 1b
+d.exp1a.training = d.exp1a %>% select_training()
+d.exp1b.training = d.exp1b %>% select_training()
+d.exp1ab.training = 
+  rbind(d.exp1a.training,
+        d.exp1b.training) %>%
+  defineContrasts() %>%
+  mutate(Experiment = factor(Experiment, levels = c("1a", "1b")))
+contrasts(d.exp1ab.training$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
+
+d.exp1a.test = d.exp1a %>% select_test()
+d.exp1b.test = d.exp1b %>% select_test()
+```
+
+Performance during the earliest exposure blocks was higher in Experiment 1b, compared to 1a, for the multi-talker condition, and to some extent for the control condition. What these two these two exposure conditions have in common is that they involve five exposure talkers, rather than one (for the same total number of stimuli), and thus more heterogenous stimuli. Other than this difference, performance seems pretty much identical across exposure conditions. 
+
+It is possible that differences in performanec during exposure reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition. The proportion of participants who used headsets increased most from Experiment 1a to 1b for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b).
+
+**The analyses of performance during the test phase therefore include predictor controlling for individual differences in performance during exposure**. Below, we describe how this control predictor was obtained.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
+
+```{r, comparison exp1a exp1b}
+myGplot.defaults(type = "paper")
+d.exp1ab.training %>%
+  group_by(WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  group_by(Experiment, WorkerID, Condition2, Quintile) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
+	ggplot(aes(x = Quintile + 1, y = PropKeywordsCorrect, colour = Condition2, fill = Condition2, shape = Experiment)) +
+  	stat_summary(fun.data = mean_cl_boot, geom = "pointrange", position = position_dodge(.5))+ 
+    xlab("Trial bin during exposure") +
+		scale_y_continuous("Proportion of keywords correctly transcribed") +
+    scale_colour_manual("Exposure Condition", 
+                        values = setNames(colors.exposure, levels.exposure), 
+                        guide = F) +
+    scale_fill_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, 
+                                        levels.exposure), 
+                      guide = F) +
+    coord_cartesian(ylim = c(0.75,1.0)) +
+    facet_grid(. ~ Condition2) +
+    theme(legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+
+ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
+```
+
+## Comparison of exposure phase in Experiments 1a and 1b [MORE TEXT HERE. EXPLAIN THE VARIOUS WAYS TO ANALYZE EXPOSURE DATA]
+
+```{r, training models summary}
+my.priors = c(
+    # Following Gelman et al (2008) and later revisions on wiki.
+    # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
+    # Second parameter is mu: should be 0 to be unbiased
+    # Third parameter is sigma: larger means wider
+    prior(student_t(3,0,2.5), class = b),
+    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
+    prior(cauchy(0,5), class = sd), 
+    # Uniform prior of correlations
+    prior(lkj(1), class = cor)
+)
+
+m.brm.exp1ab.train.wExperiment = brm(IsCorrect ~ Cond.diff * sQuintile * Experiment +
+                           (1 + Cond.diff | Sentence) + (1 + sQuintile | WorkerID) + (1 | CurrentTalkerID), 
+                         data = d.exp1ab.training, 
+                         family = bernoulli, cores = max.cores, chains = 4, 
+                         warmup = 2000, iter = 4000, 
+                         prior = my.priors, file = "../models/exp1ab.Training.wExperiment")
+
+s = summary(m.brm.exp1ab.train.wExperiment)$fixed
+colnames(s) = c("Est.", "SE", "$CI_{lower}$", "$CI_{upper}$", "$\\hat{R}$", "Eff. samples (bulk)", "Eff. samples (tail)")
+rownames(s) = c("Intercept (1st Block)", 
+                "TS vs. MT (1st Block)", "MT vs. ST (1st Block)", "ST vs. CNTL (1st Block)", 
+                "Quintile", "Experiment", 
+                "Qu:TS vs. MT", "Qu:MT vs. ST", "Qu:ST vs. CNTL", 
+                "Exp:TS vs. MT", "Exp:MT vs. ST", "Exp:ST vs. CNTL", 
+                "Qu:Exp", 
+                "Qu:Exp:TS vs. MT", "Qu:Exp:MT vs. ST", "Qu:Exp:ST vs. CNTL")
+kable(s, digits = c(2, 3, 2, 2, 1, 2), 
+      caption = "Training analysis of Experiments 1a and 1b combined")
+
+xhypotheses(
+  list(
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL < 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL < 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffST.vs.CNTL < 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffMT.vs.ST < 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffTS.vs.MT:Experiment1avs.1b + Cond.diffMT.vs.ST:Experiment1avs.1b + Cond.diffST.vs.CNTL:Experiment1avs.1b > 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffMT.vs.ST:Experiment1avs.1b + Cond.diffST.vs.CNTL:Experiment1avs.1b > 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffST.vs.CNTL:Experiment1avs.1b > 0", class = "b"),
+    hypothesis(m.brm.exp1ab.train.wExperiment, 
+               "Cond.diffMT.vs.ST:Experiment1avs.1b < 0", class = "b")),
+  labels = c("TS < CNTL (1st Block)", "MT < CNTL (1st Block)", "ST < CNTL (1st Block)", "MT < ST (1st Block)",
+             "Exp 1a vs. 1b - TS > CNTL", "Exp 1a vs. 1b - MT > CNTL", "Exp 1a vs. 1b - ST > CNTL", "Exp 1a vs. 1b - MT < ST")
+)
+```
+
+## Linear model of changes in performance during exposure ignoring experiment
+
+```{r}
+# Model without experiment as predictor
+m.brm.exp1ab.train = brm(IsCorrect ~ Cond.diff * sQuintile +
+                           (1 + Cond.diff | Sentence) + (1 + sQuintile | WorkerID) + (1 | CurrentTalkerID), 
+                         data = d.exp1ab.training, 
+                         family = bernoulli, cores = max.cores, chains = 4, 
+                         warmup = 2000, iter = 4000, 
+                         prior = my.priors, file = "../models/exp1ab.Training.diff")
+plot(conditional_effects(m.brm.exp1ab.train, 
+                         # set to NULL to add uncertainty about all random effects
+                         re_formula = NA), ask = F)
+```
+
+## Monotonic model of changes in performance during exposure ignoring experiment
+
+To ascertain that the linearity assumption in the linear model does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). 
+
+```{r}
+m.brm.exp1ab.train.monotonic = brm(IsCorrect ~ Cond.diff * mo(Quintile) +
+                           (1 + Cond.diff | Sentence) + (1 + mo(Quintile) | WorkerID) + (1 | CurrentTalkerID), 
+                         data = d.exp1ab.training, 
+                         family = bernoulli, cores = max.cores, chains = 4, 
+                         warmup = 2000, iter = 4000, 
+                         prior = my.priors, file = "../models/exp1ab.Training.diff.monotonic")
+plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
+                         # set to NULL to add uncertainty about all random effects
+                         re_formula = NA), ask = F)
+```
+
+## Comparing different ways to correct for differences in exposure performance across experiments (TEXT NEEDS TO BE UPDATED)
+```{r add individual training performance to training and test data}
+## Extract random by-subject intercepts from the various models
+get_random_intercepts = function(model) {
+  ranef(model)[["WorkerID"]][,,"Intercept"] %>%
+    as_tibble(rownames = "WorkerID") %>%
+    dplyr::select(WorkerID, Estimate)
+}
+
+d.training.individual_performance = 
+  m.brm.exp1ab.train %>%
+  get_random_intercepts() %>%
+  rename(individual_training_performance.linear = Estimate) %>%
+  left_join(
+    m.brm.exp1ab.train.monotonic %>%
+    get_random_intercepts() %>%
+    rename(individual_training_performance.monotonic = Estimate)
+  ) %>%
+  left_join(
+    m.brm.exp1ab.train.wExperiment %>%
+    get_random_intercepts() %>%
+    rename(individual_training_performance.linear.wExperiment = Estimate)
+  ) 
+
+# Join individual training performance back into data frames
+add_individual_performance = . %>%
+  left_join(d.training.individual_performance) %>%
+  defineContrasts() %>% 
+  standardize()
+
+d.exp1ab.training = 
+  rbind(d.exp1a.training, d.exp1b.training) %>%
+  add_individual_performance()
+d.exp1a.training %<>% add_individual_performance()
+d.exp1b.training %<>% add_individual_performance()
+
+d.exp1ab.test = 
+  rbind(d.exp1a.test, d.exp1b.test) %>%
+  add_individual_performance()
+d.exp1a.test %<>% add_individual_performance()
+d.exp1b.test %<>% add_individual_performance()
+```
+
+
+To capture these differences we calculate the participant-specific *a priori* performance in the first trial bin of exposure. These are by-participant random intercepts for the proportion of keywords correctly transcribed during the first bin of exposure, corrected for the exposure condition (fixed effect), by-item and by-current talker random intercepts. We estimate two such corrections---one by using data from only Experiment 1a or only Experiment 1b, the other while using using data from both experiments combined (without a main effect of experiment, because we are interested in catching *a priori* differences in participant-specific performance, rather than attributing it to the version of the experiment).
+
+These plots compare the two different approaches to correction for *a priori* performance of participants. In the remainder of this document, we use the second approach, the one based on fitting the correction model to **all** participants (i.e., both Experiments 1a and 1b, without an effect of Experiment). The plots shown here provide an intuition how this will affect the analyses of the test data in Experiments 1a and 1b, and how this differs across the four exposure conditions. The black shapes show the mean across participants in that condition and experiment.
+
+### Comparing the individual differences for the linear model depending on whether effects are estimated while controlling for experiment
+```{r, fig.height=6, fig.width=7}
+d.exp1ab.test %>%
+  dplyr::select(Experiment, WorkerID, Condition2, starts_with("individual_training_performance")) %>%
+  distinct() %>%
+  group_by(Experiment, WorkerID, Condition2) %>%
+  dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
+  { . ->> temp } %>%
+ggplot(aes(x = individual_training_performance.linear.wExperiment, y = individual_training_performance.linear, shape = Experiment, color = Experiment)) +
+  geom_abline(slope = 1) +
+  geom_point(alpha = .5) +
+  geom_point(data = temp %>%
+         group_by(Experiment, Condition2) %>%
+         dplyr::summarise_all(mean),
+         size = 3, alpha = 1, color = "black"
+  ) +
+  scale_x_continuous("by-participant adjustment based on Experiments 1a and 1b") +
+  scale_y_continuous("by-participant adjustment based on Experiments 1a *or* 1b only") +
+  facet_wrap(~ Condition2)
+
+cat("Zooming in ...\n")
+last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
+```
+
+### Comparing the individual differences for the linear and monotonic model depending (ignoring experiment)
+
+Finally, there is no evidence that the linearity assumption causes any bias in the estimation of individual differences, compared to the model that merely assumes monotonicity. The two models provide *very similar* estimates of participants' performance during the first exposure block. In the remainder of the analyses, we thus used the linear model because it is more common and readers are more familiar with it. Given the high similarity in the estimates, we never investigated whether individual differences based on the monotonic model would change any of the results for the test data.
+
+```{r, fig.height=6, fig.width=7}
+d.exp1ab.test %>%
+  dplyr::select(Experiment, WorkerID, Condition2, starts_with("individual_training_performance")) %>%
+  distinct() %>%
+  group_by(Experiment, WorkerID, Condition2) %>%
+  dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
+  { . ->> temp } %>%
+ggplot(aes(x = individual_training_performance.monotonic, y = individual_training_performance.linear, shape = Experiment, color = Experiment)) +
+  geom_abline(slope = 1) +
+  geom_point(alpha = .5) +
+  geom_point(data = temp %>%
+         group_by(Experiment, Condition2) %>%
+         dplyr::summarise_all(mean),
+         size = 3, alpha = 1, color = "black"
+  ) +
+  scale_x_continuous("by-participant adjustment based on Experiments 1a and 1b") +
+  scale_y_continuous("by-participant adjustment based on Experiments 1a *or* 1b only") +
+  facet_wrap(~ Condition2)
+
+cat("Zooming in ...\n")
+last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
+```
+
+
+
+## Predicting individual difference during test from individual differences during training
+
+```{r}
+# SDs
+d.exp1ab.test %>%
+  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x))
+
+nsamples.warmup = 2000
+nsamples.total = 4000
+
+# Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
+# ambiguous continuum step (rather than center). Binary factors should be coded to have level-
+# distance of 1. Then we follow https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations 
+# and set the scale of the our t-prior to 2.5
+my.priors = c(
+    # Following Gelman et al (2008) and later revisions on wiki.
+    # First parameter is DFs: smaller means fatter (less normal) tails. 
+    # Second parameter is mu: should be 0 to be unbiased
+    # Third parameter is sigma: larger means wider
+    prior(student_t(3,0,2.5), class = b),
+    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
+    prior(cauchy(0,5), class = sd)
+    # , 
+    # # Uniform prior of correlations
+    # prior(lkj(1), class = cor)
+)
+
+m.exp1a.test.fromTraining <- brm(IsCorrect ~ 
+                           1 + individual_training_performance.linear_s +
+                           (1 | Sentence) + (1 | WorkerID),  
+                         data = d.exp1ab.test %>% standardize(), 
+                         family = bernoulli, cores = 4, chains = 4, 
+                         warmup = nsamples.warmup, iter = nsamples.total, 
+                         prior = my.priors, file = "../models/exp1a.Test.fromIndividualTrainingDifferences")
+summary(m.exp1a.test.fromTraining)
+```
+
+
+
+\newpage
+# Test - Experiment 1a
+
+In order to address the three questions we ask in the main text (Table 1), we need to compare test performance between the multi-talker and control condition (*Question 1: Is there cross-talker generalization after multi-talker exposure?*), between the single talker and control condition (*Question 2: Is there cross-talker generalization after single talker exposure?*), and the multi-talker and single talker condition (*Question 3: Does multi-talker exposure facilitate cross-talker generalization, compared to single talker exposure?*). 
+
+To achieve these comparisons, we use `brm()` from the `brms` package to fit Bayesian mixed-effects logistic regression to the test data, predicting the accuracy of participants' responses from the four exposure conditions (control, single talker, multi-talker, talker-specific), and the control predictor for individual differences (see main text for details). The random effect structure was maximal, i.e., random intercepts by subject and item, as well as random slopes for the exposure condition by item (since exposure condition was manipulated between subjects, no by subject slopes were included).
+
+All hypothesis tests reported in the paper are based on a model that uses sliding difference-coding for the the exposure conditions. The *sliding difference-coded model* imposes an order among the four conditions (control < single talker < multi-talker < talker-specific exposure), and compares each condition against the next 'lower' condition. The first contrast compares the single talker against the control condition. The second contrast compares the multi-talker against the single talker condition. The third contrast compares the talker-specific against the multi-talker condition. This coding has the advantage the resulting predictors are orthogonal to each other (unlike for, e.g., treatment-coding). The `hypothesis()` function of the `brms` package makes it easy to test hypotheses about sums of effects. For example, the Bayesian hypothesis test for our first question (*Is there cross-talker generalization after multi-talker exposure?*) asks whether the sum of the single talker vs. control effect (resulting from the first sliding difference-coded contrast) plus the multi-talker vs. single talker effect (resulting from the second sliding difference-coded contrast) is larger than zero. The test for our second question (*Is there cross-talker generalization after single talker exposure?*) asks whether the single talker vs. control effect by itself is larger than zero. The test for our third question (*Is there cross-talker generalization after single talker exposure?*) asks whether the multi-talker vs. single talker effect (resulting from the third sliding difference-coded contrast) is larger than zero. And, finally, the hypothesis test for the talker-specific effect---provided for comparison, as it is has been replicated many times across studies---ask whether the sum of all three sliding difference-coded contrasts is larger than zero.
+
+Since some readers might be more familiar with treatment-coding, we also present a *treatment-coded model* that compares each condition against the control condition as baseline. The first contrast compares the talker-specific condition against the control. The second contrast compares the multi-talker condition against the control. The third contrast compares the single-talker condition against the control. The treatment-coded model differed from the sliding difference-coded model only in terms of the contrasts employed for the exposure conditions.
+
+We first present the result summary for the three questions of interest. These are the results presented in the main text. Then we we present the complete model output and additional Bayesian hypothesis tests for both the difference- and treatment-coded models.
+
+```{r, exp1a test block analysis - main level - also plot this}
+nsamples.warmup = 1000
+nsamples.total = 11000
+
+# Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
+# ambiguous continuum step (rather than center). Binary factors should be coded to have level-
+# distance of 1. Then we follow https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations 
+# and set the scale of the our t-prior to 2.5
+my.priors = c(
+    # Following Gelman et al (2008) and later revisions on wiki.
+    # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
+    # Second parameter is mu: should be 0 to be unbiased
+    # Third parameter is sigma: larger means wider
+    prior(student_t(3,0,2.5), class = b),
+    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
+    prior(cauchy(0,5), class = sd), 
+    # Uniform prior of correlations
+    prior(lkj(1), class = cor)
+)
+
+# m.exp1a.test.treat <- brm(IsCorrect ~ Cond.treat + individual_training_performance.linear_s + 
+#                             (1 + Cond.treat | Sentence) + (1 | WorkerID),  
+#                           data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                           warmup = nsamples.warmup, iter = nsamples.total,
+#                           prior = my.priors, file = "../models/exp1a.Test.treat")
+# m.exp1a.test.diff <- brm(IsCorrect ~ Cond.diff + individual_training_performance.linear_s + 
+#                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#                          data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                          warmup = nsamples.warmup, iter = nsamples.total, 
+#                          prior = my.priors, file = "../models/exp1a.Test.diff")
+
+# offset model
+m.exp1a.test.treat <- brm(IsCorrect ~ Cond.treat + offset(individual_training_performance.linear) +
+                            (1 + Cond.treat | Sentence) + (1 | WorkerID),
+                          data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores,
+                          warmup = nsamples.warmup, iter = nsamples.total,
+                          prior = my.priors, file = "../models/exp1a.Test.treat")
+m.exp1a.test.diff <- brm(IsCorrect ~ 
+                           offset(individual_training_performance.linear) +
+                           1 + Cond.diff + 
+                           (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+                         data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+                         warmup = nsamples.warmup, iter = nsamples.total, 
+                         prior = my.priors, file = "../models/exp1a.Test.diff")
+
+
+
+# Without any correction for a priori performance
+# m.exp1a.test.treat.woCorrection <- brm(IsCorrect ~ Cond.treat + 
+#                                          (1 + Cond.treat | Sentence) + (1 | WorkerID),  
+#                                        data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                                        warmup = nsamples.warmup, iter = nsamples.total, 
+#                                        prior = my.priors, file = "../models/exp1a.Test.treat.woCorrection")
+# m.exp1a.test.diff.woCorrection <- brm(IsCorrect ~ Cond.diff + 
+#                                         (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#                                       data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                                       warmup = nsamples.warmup, iter = nsamples.total, 
+#                                       prior = my.priors, file = "../models/exp1a.Test.diff.woCorrection")
+
+myGplot.defaults(type = "paper")
+plot_base = 
+  d.exp1a %>%
+  group_by(WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  filter(PartOfExp == "test") %>% 
+  group_by(WorkerID, Condition2) %>%
+  dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
+  ggplot(aes(x = Condition2, y = PropKeywordsCorrect, colour = Condition2, fill = Condition2)) +
+  stat_summary(fun = "mean", geom = "point", 
+               alpha = 1, size = 1.1, stroke=3, position = position_dodge(.9)) +
+  stat_summary(fun.data = mean_cl_boot, geom = "errorbar", 
+               width = 0.2, linetype = 1, size = 1, position = position_dodge(.9)) +   xlab("Exposure condition") +
+  scale_colour_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
+  scale_fill_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
+  theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+
+p.test.proportion = plot_base + 
+  geom_dotplot(binaxis = "y", binwidth = 0.015, stackdir = "center", alpha = .3, position = position_dodge(.9)) +
+  scale_y_continuous("Proportion of keywords correctly transcribed") +
+  coord_cartesian(ylim = c(0.3,1.02))
+
+p.test.proportion
+ggsave(p.test.proportion, filename = "../figures/p.exp1a.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
+
+p.test.emplogit = plot_base %+%
+  (d.exp1a.test %>%
+     group_by(WorkerID, Sentence) %>%
+     distinct(.keep_all = TRUE) %>%
+     group_by(WorkerID, Condition2) %>%
+     dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51))) +
+  geom_violin(fill = NA) +
+  geom_dotplot(binaxis = "y", stackdir = "center", alpha = .3, position = position_dodge(.9)) +
+  scale_y_continuous("Empirical logits of correctly transcribed") 
+
+p.test.emplogit
+ggsave(p.test.emplogit, filename = "../figures/p.exp1a.emplogit.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
+
+```
+
+## Results for Questions 1-3
+```{r plots for Exp 1a, fig.width=8, fig.height=4}
+plot_3effects(m.exp1a.test.diff, "Experiment 1a", fill = colors.model[1]) 
+ggsave("../figures/exp1a_Q123_effects.pdf", width = 8, height = 3.5)
+
+table_3effects(m.exp1a.test.diff)
+```
+
+## Sliding difference-coded analyses
+```{r, exp1a test block analysis - contrasts for sliding difference coding}
+contrasts(d.exp1a.test$Cond.diff)
+```
+
+### Model summary
+```{r, exp1a test block analysis - model output for sliding difference coding, warning=TRUE, size = "footnotesize"}
+summary(m.exp1a.test.diff)
+```
+
+### Additional hypothesis testes
+```{r, exp1a test block analysis - hypotheses for sliding difference coding}
+xhypotheses(
+  list(
+    hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
+    hypothesis(m.exp1a.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1a.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")
+#    hypothesis(m.exp1a.test.diff, "Intercept.ranef.1ab > 0", class = "b")
+  )
+)
+```
+
+
+## Treatmeant-coded analysis
+```{r, exp1a test block analysis - contrasts for treatment coding}
+contrasts(d.exp1a.test$Cond.treat)
+```
+
+
+### Model summary
+```{r, exp1a test block analysis - model output for treatment coding, warning=TRUE, size = "footnotesize"}
+summary(m.exp1a.test.treat)
+```
+
+### Additional hypothesis tests
+
+```{r, exp1a test block analysis - hypotheses for treatment coding}
+xhypotheses(
+  list(
+    hypothesis(m.exp1a.test.treat, "Cond.treatTS.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1a.test.treat, "Cond.treatMT.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1a.test.treat, "Cond.treatST.vs.CNTL > 0", class = "b")
+#    hypothesis(m.exp1a.test.treat, "Intercept.ranef.1ab  > 0", class = "b")
+  )
+)
+```
+
+
+
+
+
+
+\newpage
+# Test - Experiment 1b
+
+```{r, exp1b test block analysis - main level - also plot this}
+# m.exp1b.test.treat <- brm(IsCorrect ~ Cond.treat + individual_training_performance.linear_s + 
+#                             (1 + Cond.treat | Sentence) + (1 | WorkerID),  
+#                           data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                           warmup = nsamples.warmup, iter = nsamples.total, 
+#                           prior = my.priors, file = "../models/exp1b.Test.treat"
+# )
+#
+# m.exp1b.test.diff <- brm(IsCorrect ~ Cond.diff + individual_training_performance.linear_s + 
+#                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#                          data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                          warmup = nsamples.warmup, iter = nsamples.total, 
+#                          prior = my.priors, file = "../models/exp1b.Test.diff")
+
+# Without any correction
+# m.exp1b.test.treat.woCorrection <- brm(IsCorrect ~ Cond.treat + 
+#                                          (1 + Cond.treat | Sentence) + (1 | WorkerID),  
+#                                        data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                                        warmup = nsamples.warmup, iter = nsamples.total, 
+#                                        prior = my.priors, file = "../models/exp1b.Test.treat.woCorrection")
+# 
+# m.exp1b.test.diff.woCorrection <- brm(IsCorrect ~ Cond.diff + 
+#                                         (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#                                       data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#                                       warmup = nsamples.warmup, iter = nsamples.total, 
+#                                       prior = my.priors, file = "../models/exp1b.Test.diff.woCorrection")
+
+# offset model
+m.exp1b.test.diff <- brm(IsCorrect ~ 
+                           offset(individual_training_performance.linear) +
+                           1 + Cond.diff + 
+                           (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+                         data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+                         warmup = nsamples.warmup, iter = nsamples.total, 
+                         prior = my.priors, file = "../models/exp1b.Test.diff")
+m.exp1b.test.treat <- brm(IsCorrect ~ 
+                            offset(individual_training_performance.linear) +
+                            1 + Cond.treat +
+                            (1 + Cond.treat | Sentence) + (1 | WorkerID),  
+                          data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+                          warmup = nsamples.warmup, iter = nsamples.total, 
+                          prior = my.priors, file = "../models/exp1b.Test.treat"
+)
+
+myGplot.defaults(type = "paper")
+p.test.proportion %+% 
+  (d.exp1b.test %>%
+     group_by(WorkerID, Sentence) %>%
+     distinct(.keep_all = TRUE) %>%
+     group_by(WorkerID, Condition2) %>%
+     dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) 
+ggsave(filename = "../figures/p.exp1b.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
+
+p.test.emplogit %+% (
+  d.exp1b.test %>%
+    group_by(WorkerID, Sentence) %>%
+    distinct(.keep_all = TRUE) %>%
+    group_by(WorkerID, Condition2) %>%
+    dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51)))
+ggsave(filename = "../figures/p.exp1b.emplogit.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
+```
+
+
+## Results for Questions 1-3
+
+```{r plots for Exp 1b, fig.width=8, fig.height=4}
+plot_3effects(m.exp1b.test.diff, "Experiment 1b", fill = colors.model[1]) 
+ggsave("../figures/exp1b_Q123_effects.pdf", width = 8, height = 3.5)
+
+table_3effects(m.exp1b.test.diff)
+```
+
+## Sliding difference-coded analyses
+```{r, exp1b test block analysis - contrasts for sliding difference coding}
+contrasts(d.exp1b.test$Cond.diff)
+```
+
+### Model summary
+```{r, exp1b test block analysis - model output for sliding difference coding, warning=TRUE, size = "footnotesize"}
+summary(m.exp1b.test.diff)
+```
+
+### Additional hypothesis tests
+```{r, exp1b test block analysis - hypotheses for sliding difference coding}
+xhypotheses(
+  list(
+    hypothesis(m.exp1b.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
+    hypothesis(m.exp1b.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1b.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")
+#    hypothesis(m.exp1b.test.diff, "Intercept.ranef.1ab > 0", class = "b")
+  )
+)
+```
+
+
+## Treatmeant-coded analysis
+```{r, exp1b test block analysis - contrasts for treatment coding}
+contrasts(d.exp1b.test$Cond.treat)
+```
+
+
+### Model summary
+```{r, exp1b test block analysis - model output for treatment coding, warning=TRUE, size = "footnotesize"}
+summary(m.exp1b.test.treat)
+```
+
+### Additional hypothesis tests
+
+```{r, exp1b test block analysis - hypotheses for treatment coding}
+xhypotheses(
+  list(
+    hypothesis(m.exp1b.test.treat, "Cond.treatTS.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1b.test.treat, "Cond.treatMT.vs.CNTL > 0", class = "b"),
+    hypothesis(m.exp1b.test.treat, "Cond.treatST.vs.CNTL > 0", class = "b")
+#    hypothesis(m.exp1b.test.treat, "Intercept.ranef.1ab  > 0", class = "b")
+  )
+)
+```
+
+
+
+
+
+
+
+
+\newpage
+
+# Consequences of by-talker variability
+
+Unlike the original study by Bradlow and Bent (2008), our replication included multiple (4) test talkers and many exposure-test talker combinations (20 for the single talker condition, 4 each for the control, multi-talker and talker-specific conditions). This allows us to begin to assess the consequences of cross-talker variability on the effects of exposure. We present additional analyses that account for cross-talker differences, allowing us to assess whether our conclusions would differ if Experiments 1a and 1b had only used a subset of the exposure and test talkers. In particular, we ask two questions:
+
+ + Can *limiting the experiment to one test talker* change the results, compared to having four test talkers?
+ + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
+
+We address these questions through additional Bayesian mixed-effects logistic regression, repeating the analyses presented in the main text while including random effects by test talker or exposure-test talker combination. These analyses reveal substantial quantitative---though, at least for our relatively homogenous set of talkers, not *necessarily* qualitative---variability in ou results, depending on the exposure and test talkers. As would be expected, this variability is particularly evident for the single talker and talker-specific conditions, the conditions for which exposure involved only a single talker. In particular, the effect of single talker exposure can vary *qualitatively* depending on the combination of exposure and test talker. <!-- CHECK --> 
+
+This highlights the need for future work to either employ stimuli from multiple talkers, or to appropriately caveat the conclusions drawn from experiments that are based on a very small number of talkers. Put differently, it is to be expected that individual experiments---in particular if they are based on only one exposure and/or test talker---will return different results *even if the experiments employ an adequate number of subjects and items*. Such differences in results do not necessarily reflect empirical conflicts, but might quite simply capture that cross-talker generalization is, or is not, observed after exposure to the *particular* combination of exposure and test talkers. This point deserves emhasis, in particular, given the field's reliance on, and frequent misinterpretation of, the notion of significance: this 'significance filter' (Vasishth, 2018) can misleadingly further the impression that results conflict even when effects across pattern in identical ways. To make things worse, apparent qualitative differences in results between experiments---sometimes within the same paper---are not infrequently used to motivate ad-hoc theorizing. The present results suggest that research on speech perception ought to first ask whether differences in results are simply the consequence of using different combinations of talkers.
+
+Next, we assess the degree of *overconfidence* that results from experiments with just one test talker if we fail to consider that the use of a single test talker makes it impossible to account for cross-talker variability. This further illustrates the consequences of the common practice to measure talker-specific adaptation and cross-talker generalization against a single test talker. Specifically, we ask:
+
+ + How much (if at all) do experiments with a single test talker result in *over-confidence in the generalizability of our results* (if we fail to remember that they are based on just one test talker)?  
+ 
+For this, we analyze subsets of our data that only include one test talker with the same approach as in the main text, and compare the uncertainty about the effect of exposure to results based on the same total amount of data from all four test talkers. The results highlight that the use of a single test talker might make it *appear* as if one can be more certain about the results, but that this relative certainty about the effect of exposure is misleading: with one test talker, researchers simply do not know how much the results would vary if multiple test talkers were considered, and thus researchers might feel overconfident that their striking results will generalize to other talkers.
+
+This leads us to the final analysis in thise section. The use of multiple exposure and test talkers also lets us assess the generalizability of our results beyond the specific exposure and test talkers employed in Experiments 1a and 1b. We use the Bayesian mixed-effects logistic regressions with random effects by exposure and test talkers to quantify how much our certainty about the effect of exposure increases if our analyses acknowledge exposure and/or test talkers as sources of random variability. We find, for example, that the standard error for the effect of single talker exposure increases three-fold <!-- CHECK --> if exposure-test talker combinations are acknowledged as a source of random variability. This further illustrates the need for studies on speech perception---and other domains of the psychological sciences that involve social or socially-conditioned inferences---to use stimuli that come from multiple talkers, and analyses that capture this variability adequately.
+
+
+## Do differences between test talkers affect the conclusions one would draw?
+
+To address our first question:
+
+ + Can *limiting the experiment to one test talker* change the results, compared to having four test talkers?
+
+we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. The additional analysis added random intercepts and slopes for the exposure conditions by test talkers. We use these models to estimate the effects of exposure by test talker.^[An alternative approach would be to estimate the effect for each test talker by fitting separate models to the data from each test talker. This approach would not use all data and thus have reduced power. Another approach would be to use all data---as we did here---but to model effects of test talkers as fixed effects, interacting with exposure condition. Empirically, this is unlikely to result in different results than the approach taken here. We prefer the approach we pursued here for three reasons. First, it is conceptually appealing, as it views the four test talkers as sampled from a larger population (among which differences in the effect of exposure are assumed to be normally distributed). Second, treating test talkers as random effects essentially imposes a regularizing prior on the by-test talker means, which should reduce the probability of overfitting to the sample (for an accessible discussion of the resulting 'shrinkage' effects, see Kliegl et al., 2010). Third, the approach is parsimonuous in terms of its degrees of freedom: for a random intercept and a three random slopes for the exposure conditions, the resulting 4x4 variance-covariance matrix of the random effects by test talker has 7 DFs (4 variances, and 3 correlations between them). Treating test talker as fixed effect requires 12 DFs = 3 DFs (for the four test talkers) + 3 x 3 DFs (for the interaction with exposure condition). This benefit becomes even more pronounced for variables with more levels, such as the effects of exposure-test talker combinations: for the random effect approach, the number of DFs does not change, whereit it increases linearly with the number of levels for the fixed effect approach.] 
+
+Models were fit with 3000 warm-up and 2000 posterior samples for each of 4 chains, for a total of 8000 posterior samples. The priors were the same as for the main analysis *except that we set a more specific prior for the intercept*: a student $t$ prior with a scale of 2.5, 7 DFs, and a location parameter set to the posterior mean of the main analysis. This was done to aid convergence, since weaker priors resulted in divergent transitions. 
+
+
+```{r exp1-additional-random-effects}
+# Run the same models but with by-talker random effects. This is conservative (probably overly conservative)
+# compared to previous work). More regularizing priors were needed to converge --- in particular for the
+# intercept. The primary contributor to convergence seems to not be the mean of the intercept prior (the 
+# data overrides that quite easily), but having a less broad prior, ruling out more extreme values for the 
+# intercept.
+nsamples.warmup.wTalker = 3000
+nsamples.total.wTalker = 5000
+
+# To aid convergence stronger priors had to be used, compared to the models without additional random effects
+my.priors.wTalker.diff = c(
+  # Prior on intercept was necessary for convergence. 
+  # Set to value observed in models without talker random effects
+  prior(student_t(7,2.12,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+m.exp1a.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
+                                 data = d.exp1a.test, family = bernoulli, cores = max.cores, chains =  4, 
+                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wTestTalker")
+m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
+                                   (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
+                                 data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4, 
+                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposureTestTalker")
+
+###################################### Experiment 1b
+my.priors.wTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(7,2.20,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
+                                 data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
+                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+                                 prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wTestTalker")
+m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
+                                   (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
+                                 data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
+                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+                                 prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wExposureTestTalker")
+```
+
+
+
+### Summary of findings 
+It is clear that the specific effects differ between test talkers. For the present data, these differences are comparatively small: we find the same ordering of relative effect sizes across all test talkers, and the posterior probability for a positive answer to Questions 1-3 is always larger than 50%. The similarity of the effect sizes is perhaps not surprising, since we (a) all of the six test talkers we considered in our pilot study were chosen to be of medium proficiency, <!-- Xin: CHECK --> and (b) of those six, we chose the four test talkers that were not close to ceiling after talker-specific adaptation. In short, our test talkers are representive only of a comparatively homogenous subset of the overall population of Mandarin-accented talkers.
+
+However, even for test talkers like these, who are *a priori* expected to be relatively similar to each other, it is also clear that we would have come to at least gradiently different conclusions if we had chosen only one of our four test talkers. <!-- TO DO: continue here with brief summary of results -->
+
+### Experiment 1a
+We first quantify how the overall result of exposure differs depending on the test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
+
+```{r}
+plot_3effects(m.exp1a.test.diff.wTestTalker, "Experiment 1a by test talker", 
+              by = "TestTalker", fill = colors.model[2], alpha = 1) 
+ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
+
+table_3effects(m.exp1a.test.diff.wTestTalker, 
+               scope = "coef", group = "TestTalkerID")
+```
+
+Next, we further quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. This was never the case for any of the comparisons or any of the test talkers. It is worth noting though that *all* effects were numerically smaller for test talker 043.
+
+```{r}
+table_3effects(m.exp1a.test.diff.wTestTalker, 
+               scope = "ranef", group = "TestTalkerID")
+```
+
+
+### Experiment 1b
+We first quantify how the overall result of exposure differs depending on the test talker. As in Experiment 1a, exposure always had *positive* effects on comprehension accuracy. The relative effect sizes order the same way as in Experiment 1a for two of the test talkers (032 and 035), but not the other two test talkers. The most striking difference is found for test talker 037, which exhibited the second strongest support for generalization after single talker exposure in Experiment 1a, but only exhibited positive support in Experiment 1b.
+
+```{r}
+plot_3effects(m.exp1b.test.diff.wTestTalker, "Experiment 1b by test talker", 
+              by = "TestTalker", fill = colors.model[2], alpha = 1)
+ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
+
+table_3effects(m.exp1b.test.diff.wTestTalker, 
+               scope = "coef", group = "TestTalkerID")
+```
+
+Next, we further quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. As was the case for Experiment 1a, there never was anywhere close to strong evidence that effects for a given test talker differed from the overall effect. For test talker 043, for which all effects were numerically smaller than the average in Experiment 1a, three out of four effects were numerically smaller than the average in Experiment 1b.
+
+```{r}
+table_3effects(m.exp1b.test.diff.wTestTalker, 
+               scope = "ranef", group = "TestTalkerID")
+```
+
+
+## Do differences between exposure-test talker combinations affect the conclusions one would draw?
+To address our second question:
+
+ + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
+
+we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts and slopes for the exposure conditions by exposure talker, embedded under test talker. We use these models to estimate the effects of exposure by exposure-test talker combination.
+
+### Experiment 1a
+```{r, fig.height=20, fig.width=20}
+plot_3effects(m.exp1a.test.diff.wExposureTestTalker, 
+              "Experiment 1a by exposure-test talker combination", 
+              by = "ExposureTestTalker", fill = colors.model[3]) 
+ggsave(filename = "../figures/exp1a_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
+```
+
+### Experiment 1b
+```{r, fig.height=20, fig.width=20}
+plot_3effects(m.exp1b.test.diff.wExposureTestTalker, 
+              "Experiment 1b by exposure-test talker combination", 
+              by = "ExposureTestTalker", fill = colors.model[3]) 
+ggsave(filename = "../figures/exp1b_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
+```
+
+```{r}
+# pars = c("Cond.treatTS.vs.CNTL", "Cond.treatMT.vs.CNTL", "Cond.treatST.vs.CNTL")
+# p.forest.Subject = forest(m.exp1a.test.treat.wExposureTestTalker, 
+#        grouping = "WorkerID",
+#        pars = pars)
+# p.forest.Item = forest(m.exp1a.test.treat.wExposureTestTalker, 
+#        grouping = "Sentence", 
+#        pars = pars)
+# p.forest.TestTalker = forest(m.exp1a.test.treat.wExposureTestTalker, 
+#        grouping = "TestTalkerID",
+#        pars = pars)
+# p.forest.ExposureTestTalker = forest(m.exp1a.test.treat.wExposureTestTalker, 
+#        grouping = 'TestTalkerID:TrainingTalkerID',
+#        pars = pars)
+# 
+# gtable_filter_remove <- function (x, name, trim = TRUE){
+#   require(gtable)
+#   require(grid)
+#   
+#   x <- ggplotGrob(x)
+#   x$layout$name
+# 
+#   matches <- !(x$layout$name %in% name)
+#   x$layout <- x$layout[matches, , drop = FALSE]
+#   x$grobs <- x$grobs[matches]
+#   if (trim) 
+#     x <- gtable_trim(x)
+# 
+#   grid.newpage()
+#   grid.draw(x)
+# }
+# 
+# gtable_filter_remove(p.forest.Item, name = paste0("axis-l-1-", c(2, 3)),
+#                                    trim = TRUE)
+# gtable_filter_remove(p.forest.TestTalker, name = paste0("axis-l-1-", c(2, 3)),
+#                                    trim = TRUE)
+# 
+# m = m.exp1a.test.treat.wExposureTestTalker
+# 
+# effect.names = c("b_Cond.treatTS.vs.CNTL", "b_Cond.treatMT.vs.CNTL")
+# 
+# study.draws <- gather_draws(m, `r_TestTalkerID:TrainingTalkerID`[Talker,Condition], !!! rlang::syms(effect.names)) %>% 
+#   mutate(b_Intercept = `r_TestTalkerID:TrainingTalkerID[TalkerID,Cond.treatTS.vs.CNTL]` + !!! rlang::syms(effect.names))
+# 
+# pooled.effect.draws <- spread_draws(m, !!! rlang::syms(effect.names)) %>% 
+#   mutate(Talker = "Pooled Effect")
+# 
+# forest.data <- bind_rows(study.draws, pooled.effect.draws) %>% 
+#    ungroup() %>%
+#    mutate(Author = str_replace_all(Author, "[.]", " ")) %>% 
+#    mutate(Author = reorder(Author, b_Intercept))
+# 
+# forest.data.summary <- group_by(forest.data, Author) %>% 
+#   mean_qi(b_Intercept)
+# 
+#       
+# ggplot(aes(b_Intercept, relevel(Talker, "Pooled Effect", after = Inf)), 
+#        data = forest.data) +
+#   geom_vline(xintercept = fixef(m.brm)[1, 1], color = "grey", size = 1) +
+#   geom_vline(xintercept = fixef(m.brm)[1, 3:4], color = "grey", linetype = 2) +
+#   geom_vline(xintercept = 0, color = "black", size = 1) +
+#   geom_density_ridges(fill = "blue", rel_min_height = 0.01, col = NA, scale = 1,
+#                       alpha = 0.8) +
+#   geom_pointintervalh(data = forest.data.summary, size = 1) +
+#   geom_text(data = mutate_if(forest.data.summary, is.numeric, round, 2),
+#     aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), x = Inf), hjust = "inward") +
+#   labs(x = "Standardized Mean Difference",
+#        y = element_blank()) +
+#   theme_minimal()
+```
+
+
+
+
+## Uncertainty about posterior effect size estimates based on the random effect structure
+
+We ask how the uncertainty about the effects of exposure changes depending on which grouping factors are acknowledged in the analysis. The analyses reported in the main text followed the conventions of the field in 2020 and included by-subject and -item random effects (Bradlow and Bent, 2008 only included by-subject analyses). However, our experiment included multiple test talkers as well as many exposure-test talker combinations. If we want to know whether the effects of our exposure conditions are likely to generalize across the population of talkers that our exposure and test talkers are drawn from, we arguably need to adequately account for these grouping factors (see Yarkoni, 2019 for discussion).
+
+We thus use the two Bayesian mixed-effects logistic regressions with random effects by test talker and exposure-test talker combinations to measure how the uncertainty about the effect of exposure condition changes if those additional random effects are included in the analysis. 
+
+With each additional source of variability (and thus uncertainty), we see that the uncertainty about the effect of exposure increases. This isn't surprising (for relevant background, see Yarkoni, 2019), but it is still worth noting that these increases are *substantial*: the standard error of the effect of single talker, compared to control, exposure increases almost three- to four-fold when we account for the variability across test talkers. <!-- CHECK whether result still holds -->
+
+```{r uncertainty-by-RE-structure, fig.width=12, fig.height=4}
+# Experiment 1a
+models.diff = list("no by-talker" = m.exp1a.test.diff, 
+                   "by test talker" = m.exp1a.test.diff.wTestTalker, 
+                   "by exposure &\ntest talker" = m.exp1a.test.diff.wExposureTestTalker)
+
+p = plot_3effects(models.diff[[3]], title = "Experiment 1a", alpha = .5, fill = colors.model[3]) 
+p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 
+p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .5, fill = colors.model[1]) 
+p = plot_3effects_var(models.diff, add_plot = p, rel_widths = c(.75, .25))
+
+p
+ggsave(p, filename = "../figures/exp1a_Q123_effects_dependingOnRE.pdf", width = 12, height = 4.5)
+table_3effects(m.exp1a.test.diff.wTestTalker, scope = "standard")
+
+
+# Experiment 1b
+models.diff = list("no by-talker" = m.exp1b.test.diff, 
+                   "by test talker" = m.exp1b.test.diff.wTestTalker, 
+                   "by exposure &\ntest talker" = m.exp1b.test.diff.wExposureTestTalker)
+
+p = plot_3effects(models.diff[[3]], title = "Experiment 1b", alpha = 1, fill = colors.model[3]) 
+p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 
+p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .25, fill = colors.model[1]) 
+p = plot_3effects_var(models.diff, add_plot = p, rel_widths = c(.75, .25))
+
+p
+ggsave(p, filename = "../figures/exp1b_Q123_effects_dependingOnRE.pdf", width = 12, height = 4.5)
+table_3effects(m.exp1b.test.diff.wTestTalker, scope = "standard")
+```
+
+
+## How does the inclusion of multiple test talkers in the experiment affect the uncertainty about exposure effects (even when the variability across test talkers is *not* modeled) REPEAT WHILE INCLUDING SET IN SAMPLING AND CHECK SORTING OF CONDITIONS IN PLOT!
+
+```{r separate models by talker}
+nsamples.warmup = 2000
+nsamples.total = 5000
+
+# Experiment 1a
+# ---------------------------------------------------
+# Run four separate models for the four test talkers
+m.exp1a.test.diff.TestTalker1 = update(m.exp1a.test.diff, 
+       newdata = d.exp1a.test %>%
+         filter(TestTalkerID == "CMN_M_032"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker1") 
+m.exp1a.test.diff.TestTalker2 = update(m.exp1a.test.diff, 
+       newdata = d.exp1a.test %>%
+         filter(TestTalkerID == "CMN_M_035"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker2")
+m.exp1a.test.diff.TestTalker3 = update(m.exp1a.test.diff, 
+       newdata = d.exp1a.test %>%
+         filter(TestTalkerID == "CMN_M_037"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker3")
+m.exp1a.test.diff.TestTalker4 = update(m.exp1a.test.diff, 
+       newdata = d.exp1a.test %>%
+         filter(TestTalkerID == "CMN_M_043"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker4")
+
+# Create a balanced subset of all four talkers
+includeWorkerIDs.1a = d.exp1a.test %>%
+  # Get all unique combinations of test talker, training talker, condition, and subject
+  dplyr::select(TestTalkerID, TrainingTalkerID, Condition2, WorkerID) %>%
+  # To facilitate balanced random sampling, training talker identity is ignored for the
+  # control and multi-talker conditions
+  mutate(TrainingTalkerID = ifelse(Condition2 %in% c("Control", "Multi-talker"), "", TrainingTalkerID)) %>%
+  distinct() %>%
+  # Sample 25% of all subjects
+  group_by(TestTalkerID, TrainingTalkerID, Condition2) %>%
+  sample_frac(size = .25, replace = F) %>%
+  ungroup() %>%
+  dplyr::select(WorkerID) %>%
+  unlist()
+
+# Check balancing of randomly draw data
+# xtabs(
+#   ~ Condition2 + TestTalkerID,
+#   data = d.exp1a.test %>%
+#          filter(WorkerID %in% includeWorkerIDs.1a))
+
+m.exp1a.test.diff.mixedTestTalker = update(m.exp1a.test.diff, 
+       newdata = d.exp1a.test %>%
+         filter(WorkerID %in% includeWorkerIDs.1a), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.mixedTestTalker1-4")
+
+# Experiment 1b
+# ---------------------------------------------------
+# Run four separate models for the four test talkers
+m.exp1b.test.diff.TestTalker1 = update(m.exp1b.test.diff, 
+       newdata = d.exp1b.test %>%
+         filter(TestTalkerID == "CMN_M_032"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker1") 
+m.exp1b.test.diff.TestTalker2 = update(m.exp1b.test.diff, 
+       newdata = d.exp1b.test %>%
+         filter(TestTalkerID == "CMN_M_035"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker2")
+m.exp1b.test.diff.TestTalker3 = update(m.exp1b.test.diff, 
+       newdata = d.exp1b.test %>%
+         filter(TestTalkerID == "CMN_M_037"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker3")
+m.exp1b.test.diff.TestTalker4 = update(m.exp1b.test.diff, 
+       newdata = d.exp1b.test %>%
+         filter(TestTalkerID == "CMN_M_043"), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker4")
+
+# Create a balanced subset of all four talkers
+includeWorkerIDs.1b = d.exp1b.test %>%
+  # Get all unique combinations of test talker, training talker, condition, and subject
+  dplyr::select(TestTalkerID, TrainingTalkerID, Condition2, WorkerID) %>%
+  # To facilitate balanced random sampling, training talker identity is ignored for the
+  # control and multi-talker conditions
+  mutate(TrainingTalkerID = ifelse(Condition2 %in% c("Control", "Multi-talker"), "", TrainingTalkerID)) %>%
+  distinct() %>%
+  # Sample 25% of all subjects
+  group_by(TestTalkerID, TrainingTalkerID, Condition2) %>%
+  sample_frac(size = .25, replace = F) %>%
+  ungroup() %>%
+  dplyr::select(WorkerID) %>%
+  unlist()
+
+# Check balancing of randomly draw data
+# xtabs(
+#   ~ Condition2 + TestTalkerID,
+#   data = d.exp1b.test %>%
+#          filter(WorkerID %in% includeWorkerIDs.1b))
+
+m.exp1b.test.diff.mixedTestTalker = update(m.exp1b.test.diff, 
+       newdata = d.exp1b.test %>%
+         filter(WorkerID %in% includeWorkerIDs.1b), 
+       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
+       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.mixedTestTalker1-4")
+```
+```{r, fig.width=10}
+# Experiment 1a
+models = list("CMN_M_032" = m.exp1a.test.diff.TestTalker1, 
+              "CMN_M_035" = m.exp1a.test.diff.TestTalker2, 
+              "CMN_M_037" = m.exp1a.test.diff.TestTalker3, 
+              "CMN_M_043" = m.exp1a.test.diff.TestTalker4, 
+              "4 talkers" = m.exp1a.test.diff.mixedTestTalker)
+
+p = plot_3effects(models[[1]], title = "Experiment 1a", alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[2]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[3]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[4]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[5]], add_plot = p, alpha = .5, fill = "black") 
+p = plot_3effects_var(models, add_plot = p, rel_widths = c(.75, .25))
+
+p
+ggsave(p, filename = "../figures/exp1a_Q123_effects_dependingOnIncludedTestTalkers.pdf", width = 12, height = 4.5)
+
+# Experiment 1b
+models = list("CMN_M_032" = m.exp1b.test.diff.TestTalker1, 
+              "CMN_M_035" = m.exp1b.test.diff.TestTalker2, 
+              "CMN_M_037" = m.exp1b.test.diff.TestTalker3, 
+              "CMN_M_043" = m.exp1b.test.diff.TestTalker4, 
+              "4 talkers" = m.exp1b.test.diff.mixedTestTalker)
+
+p = plot_3effects(models[[1]], title = "Experiment 1b", alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[2]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[3]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[4]], add_plot = p, alpha = .5, fill = "lightgray") 
+p = plot_3effects(models[[5]], add_plot = p, alpha = .5, fill = "black") 
+p = plot_3effects_var(models, add_plot = p, rel_widths = c(.75, .25))
+
+p
+ggsave(p, filename = "../figures/exp1b_Q123_effects_dependingOnIncludedTestTalkers.pdf", width = 12, height = 4.5)
+```
+
+
+
+
+## Full models with random effects by test talker
+Finally, we provide the full model output for the models with random effects by test talker and exposure-test talker combination.
+
+### Experiment 1a
+
+```{r, exp1a test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}
+summary(m.exp1a.test.diff.wTestTalker)
+```
+### Experiment 1b
+
+```{r, exp1b test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}
+summary(m.exp1b.test.diff.wTestTalker)
+```
+
+
+
+
+\newpage
+# Performance across time (2-3 year span)
+
+Experiments 1a and 1b were run at different times, almost 2 years apart. In both case, we recruited an initial number of participants and then completed to fill up lists until the pre-specified number of participants per condition was reached. This left us with data from participants that had taken the experiment at different times.
+
+## Exposure block
+
+```{r, training across time}
+# DaysSinceFirst is set so that 1 means first day. (so 'days since start of experiment')
+myGplot.defaults(type = "paper")
+
+# Training performance
+d.exp1ab.training %>% 
+  filter(Quintile == 0) %>%
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition2) %>% 
+  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition2)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Proportion of keywords correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+d.exp1ab.training %>% 
+  filter(Quintile == 0) %>%
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition2) %>% 
+  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition2)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Empirical logits of correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+```
+
+
+## Test block
+
+```{r, test across time }
+d.exp1ab.test %>% 
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition2) %>% 
+  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition2)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Proportion of keywords correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+  
+ggsave(filename = "../figures/Change in test performance over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+
+d.exp1ab.test %>% 
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition2) %>% 
+  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition2)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Empirical logits of correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+  
+ggsave(filename = "../figures/Change in test performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+
+```
+
+
+
+
+
+
+\newpage
+
+# Meta-analysis - Combined data of Experiments 1a and 1b (RERUN META-ANALYSIS MODEL)
+We combine the data from both experiments and then repeats the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability.
+
+```{r, exp1ab.noAdditionalPredictors test block analysis - main level - also plot this}
+d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
+                                  levels = c("1a", "1b"))
+contrasts(d.exp1ab.test$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
+
+m.exp1ab.noAdditionalPredictors.test.diff <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+                           (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+                         data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+                         warmup = nsamples.warmup, iter = nsamples.total, 
+                         prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
+
+# Without any correction
+m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(IsCorrect ~ Cond.diff + 
+                                        (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+                                      data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+                                      warmup = nsamples.warmup, iter = nsamples.total, 
+                                      prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
+
+myGplot.defaults(type = "paper")
+p.test.proportion %+%
+  (d.exp1ab.test %>%
+  group_by(Experiment, WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  group_by(Experiment, WorkerID, Condition2) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) + 
+  aes(shape = Experiment) + theme(legend.position = "bottom")
+ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
+
+p.test.emplogit %+% 
+  (d.exp1ab.test %>%
+  group_by(Experiment, WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  group_by(Experiment, WorkerID, Condition2) %>%
+	dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51))) + 
+  aes(shape = Experiment) + theme(legend.position = "bottom")
+ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.emplogit.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
+```
+
+
+## Results for Questions 1-3
+```{r plots for Exp 1ab.noAdditionalPredictors, fig.width=8, fig.height=4}
+plot_3effects(m.exp1ab.noAdditionalPredictors.test.diff, "Experiments 1a and 1b", fill = colors.model[1]) 
+ggsave("../figures/exp1ab_Q123_effects.noAdditionalPredictors.pdf", width = 8, height = 3.5)
+
+table_3effects(m.exp1ab.noAdditionalPredictors.test.diff)
+```
+
+## Model summary
+
+```{r, exp1ab.noAdditionalPredictors test block analysis - model output for sliding difference coding, warning=TRUE}
+summary(m.exp1ab.noAdditionalPredictors.test.diff)
+```
+
+## Additional hypothesis testing
+```{r, exp1ab.noAdditionalPredictors test block analysis - hypotheses for sliding difference coding}
+xhypotheses(
+  list(
+    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
+    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffMT.vs.ST > 0", class = "b"),
+    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b")
+#    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Intercept.ranef.1ab > 0", class = "b")
+  )
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Replication analysis (Add visualization)
+
+Use the previous data to establish a prior. You may want to construct a normal prior centered at their estimate, with a standard deviation equal to their SD (Martin proposed SE) estimate. Do this for every coefficient. Construct two models, WITHOUT using the ~ syntax. You need to use the target += normal_lpdf(…) syntax. (This is because we will need to compute the marginal likelihood, with all normalizing constants present, and the ~ syntax drops those constants). The first model has the full model, with priors defined in step 1. The second model has the reduced model, with the coefficient of interest implicitly set to zero (as in, it isn’t present). Everything else is the same as in the first model. Estimate both models using the replication data.
+
+```{r, set up replication analysis based on bridge sampling}
+# High number of posterior samples required for bridge_sampling
+nsamples.warmup = 1000
+nsamples.total = 11000
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 1: set priors and contrasts
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
+# ambiguous continuum step (rather than center). Binary factors should be coded to have level-
+# distance of 1. Then we follow https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations 
+# and set the scale of the our t-prior to 2.5
+my.priors = c(
+    # Following Gelman et al (2008) and later revisions on wiki.
+    # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
+    # Second parameter is mu: should be 0 to be unbiased
+    # Third parameter is sigma: larger means wider
+    prior(student_t(3,0,2.5), class = b),
+    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
+    prior(cauchy(0,5), class = sd), 
+    # Uniform prior of correlations
+    prior(lkj(1), class = cor)
+)
+
+d.exp1a.test = d.exp1ab.test %>% filter(Experiment == "1a") %>% defineContrasts()
+d.exp1b.test = d.exp1ab.test %>% filter(Experiment == "1b") %>% defineContrasts()
+```
+
+
+## Treatment coding
+
+```{r, replication analysis with treatment coding}
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 2: Run model on original data. But with numerically coded variables instead of contrast
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1a.test.treat <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1a.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.priors, 
+  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.stan", 
+  file = "../models/exp1a.Test.treat.numerical_coded_conditions"
+)
+
+# Let's look at this model
+# stancode(m.exp1a.test.treat)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 3: Derive priors from original data.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+model = m.exp1a.test.treat
+p = posterior_samples(model)
+
+
+p %<>%
+  dplyr::select(-starts_with("r_")) %>%
+  dplyr::select(-starts_with("lp_")) %>%
+  summarise_all(
+    .funs = c("mean", "mode", "sd", "se") 
+  ) %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "coef") %>%
+  mutate(
+    property = gsub("^.*_([a-z]+)$", "\\1", coef),
+    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
+  ) %>%
+  spread(property, V1) %>%
+  mutate(
+    class = gsub("^([a-z]+)_.*$", "\\1", coef),
+    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
+    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
+    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
+    prior = case_when(
+      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
+      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
+    )
+  ) %>% 
+  filter(class != "cor") %>%                          # For now removing correlation priors
+  dplyr::select(prior, class, coef, group) %>%
+  mutate(
+    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
+    coef = ifelse(class == "Intercept", "", coef)
+  )
+
+my.newpriors = c(
+  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
+  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
+  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
+  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
+  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
+  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
+  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
+  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
+  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
+#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
+  prior(lkj(1), class = cor)
+)
+my.newpriors.woTS.vs.CNTL = my.newpriors[-3,]
+my.newpriors.woMT.vs.CNTL = my.newpriors[-1,]
+my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.full <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) +
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.stan", 
+  file = "../models/exp1b.Test.treat.numerical_coded_conditions"
+)
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
+#         with one parameter set to 0 (removed). Again use priors based on original data. 
+#         
+#         NB: We're keeping the random effects for the null effect in the model.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.woTS.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woTS.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woTS.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions"
+)
+m.exp1b.test.treat.woMT.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woMT.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woMT.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions"
+)
+m.exp1b.test.treat.woST.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woST.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woST.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 5: Run the bridge sampler on all new models fit to the replication data
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+b1 = bridge_sampler(
+  samples = m.exp1b.test.treat.full, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b1, file = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.rds")
+b2.woTS.vs.CNTL = bridge_sampler(
+  samples = m.exp1b.test.treat.woTS.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woTS.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions.rds")
+b2.woMT.vs.CNTL = bridge_sampler(
+  samples = m.exp1b.test.treat.woMT.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woMT.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions.rds")
+b2.woST.vs.CNTL = bridge_sampler(
+  samples = m.exp1b.test.treat.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woST.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions.rds")
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 6: Calculate all the relevant Bayes Factors
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+bf(b1, b2.woTS.vs.CNTL)
+bf(b1, b2.woMT.vs.CNTL)
+bf(b1, b2.woST.vs.CNTL)
+```
+
+
+
+## Sliding difference coding
+
+```{r, replication analysis with sliding difference coding}
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 2: Run model on original data. But with numerically coded variables instead of contrast
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1a.test.diff <- brm(IsCorrect ~ offset(individual_training_performance.linear) + 
+                           Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
+                           (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
+                           (1 | WorkerID),  
+                         data = d.exp1a.test, family = bernoulli, 
+                         iter = nsamples.total, warmup = nsamples.warmup, 
+                         chains = max.cores, cores = max.cores,
+                         prior = my.priors, 
+                         save_model = "../models/m.exp1a.test.diff.full.numerically_coded_conditions.stan", 
+                         file = "../models/exp1a.Test.diff.numerical_coded_conditions"
+)
+
+# Let's look at this model
+# stancode(m.exp1a.test.diff)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 3: Derive priors from original data.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+model = m.exp1a.test.diff
+p = posterior_samples(model)
+
+p %<>%
+  dplyr::select(-starts_with("r_")) %>%
+  dplyr::select(-starts_with("lp_")) %>%
+  summarise_all(
+    .funs = c("mean", "mode", "sd", "se") 
+  ) %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "coef") %>%
+  mutate(
+    property = gsub("^.*_([a-z]+)$", "\\1", coef),
+    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
+  ) %>%
+  spread(property, V1) %>%
+  mutate(
+    class = gsub("^([a-z]+)_.*$", "\\1", coef),
+    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
+    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
+    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
+    prior = case_when(
+      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
+      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
+    )
+  ) %>% 
+  filter(class != "cor") %>%                          # For now removing correlation priors
+  dplyr::select(prior, class, coef, group) %>%
+  mutate(
+    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
+    coef = ifelse(class == "Intercept", "", coef)
+  )
+
+my.newpriors = c(
+  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
+  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
+  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
+  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
+  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
+  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
+  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
+  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
+  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
+#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
+  prior(lkj(1), class = cor)
+)
+my.newpriors.woTS.vs.MT = my.newpriors[-3,]
+my.newpriors.woMT.vs.ST = my.newpriors[-1,]
+my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.diff.full <- brm(IsCorrect ~ offset(individual_training_performance.linear) + 
+                                Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
+                                (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
+                                (1 | WorkerID),  
+                              data = d.exp1b.test, family = bernoulli, 
+                              iter = nsamples.total, warmup = nsamples.warmup, 
+                              chains = max.cores, cores = max.cores,
+                              prior = my.newpriors, save_all_pars = T, 
+                              save_model = "../models/m.exp1b.test.diff.full.numerically_coded_conditions.stan", 
+                              file = "../models/exp1b.Test.diff.numerical_coded_conditions"
+)
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
+#         with one parameter set to 0 (removed). Again use priors based on original data. 
+#         
+#         NB: We're keeping the random effects for the null effect in the model.
+#
+# For sliding difference coding the removal of a single contrast wouldn't actually correspond 
+# to removing that sliding difference from the model (the interpretation of the individual 
+# contrasts changes depending on what contrasts are in the model). Instead, we are using 3-way
+# sliding difference coding (instead of 4-way) in each grouping the two levels together for 
+# the sliding contrast has been removed. For example, for the model that removes the sliding 
+# contrast between ST and CNTL, we are grouping ST and CNTL together as the first level of 
+# the factor.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.diff.woTS.vs.MT <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
+    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
+    (1 | WorkerID),  
+  # Collapse Talker-specific and multi-talker condition
+  data = d.exp1b.test %>%
+    mutate(
+      Cond.diffMT.vs.ST = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker"), 2/3, -1/3),
+      Cond.diffST.vs.CNTL = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker", "Single talker"), 1/3, -2/3)), 
+  family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woTS.vs.MT, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.diff.woTS.vs.MT.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions"
+)
+m.exp1b.test.diff.woMT.vs.ST <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.diffTS.vs.MT + Cond.diffST.vs.CNTL +
+    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
+    (1 | WorkerID),  
+  # Collapse multi-talker and single talker condition
+  data = d.exp1b.test %>%
+    mutate(
+      Cond.diffTS.vs.MT = ifelse(Cond.diff %in% c("Talker-specific"), 2/3, -1/3),
+      Cond.diffST.vs.CNTL = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker", "Single talker"), 1/3, -2/3)), family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woMT.vs.ST, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.diff.woMT.vs.ST.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions"
+)
+m.exp1b.test.diff.woST.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + 
+    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
+    (1 | WorkerID),  
+  # Collapse single talker and control condition
+  data = d.exp1b.test %>%
+    mutate(
+      Cond.diffTS.vs.MT = ifelse(Cond.diff %in% c("Talker-specific"), 2/3, -1/3),
+      Cond.diffMT.vs.ST = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker"), 1/3, -2/3)), 
+  family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woST.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.diff.woST.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 5: Run the bridge sampler on all new models fit to the replication data
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+b1 = bridge_sampler(
+  samples = m.exp1b.test.diff.full, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b1, file = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds")
+b2.woTS.vs.MT = bridge_sampler(
+  samples = m.exp1b.test.diff.woTS.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woTS.vs.MT, file = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds")
+b2.woMT.vs.ST = bridge_sampler(
+  samples = m.exp1b.test.diff.woMT.vs.ST, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woMT.vs.ST, file = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds")
+b2.woST.vs.CNTL = bridge_sampler(
+  samples = m.exp1b.test.diff.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+saveRDS(b2.woST.vs.CNTL, file = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds")
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 6: Calculate all the relevant Bayes Factors
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+b1 = readRDS(file = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds")
+b2.woTS.vs.MT = readRDS(file = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds")
+b2.woMT.vs.ST = readRDS(file = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds")
+b2.woST.vs.CNTL = readRDS(file = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds")
+
+bf(b1, b2.woTS.vs.MT)
+bf(b1, b2.woMT.vs.ST)
+bf(b1, b2.woST.vs.CNTL)
+```
+
+
+
+
+
+# Pilot experiment
+```{r, pilot compute a priori perceptual ability and join into data frames}
+# Compute indiviudal training performance
+d.pilot.training = d.pilot %>%
+  filter(PartOfExp == "training")
+d.pilot.test = d.pilot %>%
+  filter(PartOfExp == "test")
+
+d.pilot.training$Quintile = as.numeric(cut(d.pilot.training$Trial, breaks = 5, labels = seq(1,5))) - 1
+
+# Converged- this is the model stored as models/d.pilot.Training_IndividualDifferences.rds
+if (file.exists("../models/pilot.Training_IndividualDifferences.rds")) {
+  m.pilot.train = readRDS("../models/pilot.Training_IndividualDifferences.rds")
+} else {
+  m.pilot.train <- glmer(IsCorrect ~ Condition2 + Quintile +
+                      (1 + Condition2 | Sentence) + (1 | WorkerID) + (1 | CurrentTalkerID),
+                      data = d.pilot.training, family = binomial)
+  saveRDS(m.pilot.train, file = "../models/pilot.Training_IndividualDifferences.rds")
+}
+
+d.pilot.predframe_TRAIN <- data.frame(WorkerID=levels(d.pilot.training$WorkerID))
+
+## Take the intercept of SF model and add random effects from CON model to indicate individual values for each worker in CON condition
+dd <- ranef(m.pilot.train)[["WorkerID"]]
+dd <- cbind(WorkerID = rownames(dd), dd)
+rownames(dd) <- NULL
+
+d.pilot.predframe_TRAIN <- left_join(d.pilot.predframe_TRAIN, dd, by = "WorkerID")
+d.pilot.predframe_TRAIN$Intercept.ranef <- d.pilot.predframe_TRAIN$`(Intercept)`
+d.pilot.predframe_TRAIN$`(Intercept)` <- NULL
+d.pilot.training <- left_join(d.pilot.training, d.pilot.predframe_TRAIN)
+d.pilot.test <- left_join(d.pilot.test, d.pilot.predframe_TRAIN)
+
+```
+
+```{r, pilot test block analysis - main level - also plot this}
+contrasts(d.pilot.test$Condition2) = contr.sum(2) * -1
+colnames(contrasts(d.pilot.test$Condition2)) = ("TS.vs.CNTL")
+
+
+m.pilot.test <- brm(IsCorrect ~ Condition2 + Intercept.ranef + 
+                      (1 + Condition2 | Sentence) + (1 | WorkerID),  
+                    data = d.pilot.test, family = bernoulli, cores = max.cores, file = "../models/pilot.Test")
+
+
+# The model including an interaction term was not significantly different than the one without. 
+# m.pilot.test.interaction <- glmer(IsCorrect ~ Condition.sum * Intercept.ranef + 
+#     (1 + Condition.sum| Sentence) + (1 | WorkerID),  
+#     data = d.pilot.test, family = bernoulli, cores = max.cores)
+
+# Not controlling for a priori performance does not change the main result
+# m.pilot.test.1 <- brm(IsCorrect ~ Condition.sum + 
+#     (1 + Condition.sum| Sentence) + (1 | WorkerID),  
+#     data = d.pilot.test, family = bernoulli, cores = max.cores)
+
+myGplot.defaults(type = "paper")
+d.pilot %>%
+  group_by(WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  filter(PartOfExp == "test") %>% 
+  group_by(WorkerID, Condition2) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
+	ggplot(aes(x = Condition2, y = PropKeywordsCorrect, colour = Condition2, fill = Condition2)) +
+  	stat_summary(fun = mean, geom = "point", alpha = 1, size= 1.1, stroke=3) +
+		geom_dotplot(binaxis = "y", binwidth = 0.015, stackdir = "center", alpha = .3, position = position_dodge(.9)) +
+  	stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.2, linetype=1, size =1)+ 
+    xlab("Exposure condition") +
+		scale_y_continuous("Proportion of keywords correctly transcribed") +
+    scale_colour_manual("Exposure Condition", values = setNames(colors.exposure[c(1,4)], levels.exposure[c(1,4)])) +
+    scale_fill_manual("Exposure Condition", values = setNames(colors.exposure[c(1,4)], levels.exposure[c(1,4)])) +
+    coord_cartesian(ylim = c(0.3,1.02)) +
+    theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+
+ggsave(filename = "../figures/p.pilot.ts.cntl.pdf", device = cairo_pdf, width = 3, height = 4, dpi=300)
+```
+
+```{r, pilot test block analysis - model output, size = "footnotesize"}
+summary(m.pilot.test)
+```
+
+## Hypothesis testing
+```{r, pilot test block analysis - hypotheses}
+xhypotheses(
+  list(
+    hypothesis(m.pilot.test, "Condition2TS.vs.CNTL > 0", class = "b"),
+    hypothesis(m.pilot.test, "Intercept.ranef > 0", class = "b")
+  )
+)
+```
+
+
+
+
+
+
+
+
+
+
+
+# Session info
+```{r session_info, include=TRUE, echo=TRUE, results='markup'}
+devtools::session_info()
+```

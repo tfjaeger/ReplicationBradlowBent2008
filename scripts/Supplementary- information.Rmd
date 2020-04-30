@@ -94,6 +94,8 @@ library(lubridate)
 ## ------------------------------ ##
 ## functions and constants 
 ## ------------------------------ ##
+nsamples.total.max = 11000
+
 path <- ""
 max.cores = min(parallel::detectCores(), 8)
 options(mc.cores = max.cores, width = 1000)
@@ -653,7 +655,7 @@ ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width 
 
 This was also confirmed in a Bayesian mixed-effects logistic regression over the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial bin (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. The results are summarized and visualized below.
 
-```{r, training models summary}
+```{r, training models summary, fig.width=5}
 my.priors = c(
     # Following Gelman et al (2008) and later revisions on wiki.
     # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
@@ -672,7 +674,7 @@ m.brm.exp1ab.train.wExperiment = brm(IsCorrect ~ Cond.diff * sQuintile * Experim
                          family = bernoulli, cores = max.cores, chains = 4, 
                          warmup = 2000, iter = 4000, 
                          prior = my.priors, file = "../models/exp1ab.Training.wExperiment")
-plot(conditional_effects(m.brm.exp1ab.train.wExperiment, 
+plot(conditional_effects(m.brm.exp1ab.train.wExperiment, effects = c("Cond.diff:Experiment", "sQuintile:Experiment"),
                          # set to NULL to add uncertainty about all random effects
                          re_formula = NA), ask = F)
 
@@ -725,7 +727,7 @@ Our goal was to estimate each individual's performance at the onset of the exper
 
 In this model, the random intercept by participant provide an estimate of each participants' performance *relative to other participants in the same exposure group* (since exposure condition was included in the model) *during the first trial bin* (since the first trial bin is coded as 0). These random by-participant intercepts are then used as an offset in the analysis of the test data.
 
-```{r}
+```{r, fig.width=5}
 # Model without experiment as predictor
 m.brm.exp1ab.train = brm(IsCorrect ~ Cond.diff * sQuintile +
                            (1 + Cond.diff | Sentence) + (1 + sQuintile | WorkerID) + (1 | CurrentTalkerID), 
@@ -733,7 +735,7 @@ m.brm.exp1ab.train = brm(IsCorrect ~ Cond.diff * sQuintile +
                          family = bernoulli, cores = max.cores, chains = 4, 
                          warmup = 2000, iter = 4000, 
                          prior = my.priors, file = "../models/exp1ab.Training.diff")
-plot(conditional_effects(m.brm.exp1ab.train, 
+plot(conditional_effects(m.brm.exp1ab.train, effects = c("Cond.diff", "Cond.diff:sQuintile"),
                          # set to NULL to add uncertainty about all random effects
                          re_formula = NA), ask = F)
 ```
@@ -742,6 +744,15 @@ plot(conditional_effects(m.brm.exp1ab.train,
 
 
 ## How do our modeling assumptions affect the estimates of individual differences?
+
+```{r fit monotonic model}
+m.brm.exp1ab.train.monotonic = brm(IsCorrect ~ Cond.diff * mo(Quintile) +
+                           (1 + Cond.diff | Sentence) + (1 + mo(Quintile) | WorkerID) + (1 | CurrentTalkerID), 
+                         data = d.exp1ab.training, 
+                         family = bernoulli, cores = max.cores, chains = 4, 
+                         warmup = 2000, iter = 4000, 
+                         prior = my.priors, file = "../models/exp1ab.Training.diff.monotonic")
+```
 
 ```{r add individual training performance to training and test data}
 ## Extract random by-subject intercepts from the various models
@@ -770,7 +781,9 @@ d.training.individual_performance =
 add_individual_performance = . %>%
   left_join(d.training.individual_performance) %>%
   defineContrasts() %>% 
-  standardize()
+  standardize() %>%
+  # Store offset term to avoid ambiguity
+  mutate(individual_training_performance.offset = individual_training_performance.linear * 1) #0.6365345)
 
 d.exp1ab.training = 
   rbind(d.exp1a.training, d.exp1b.training) %>%
@@ -807,8 +820,11 @@ ggplot(aes(x = individual_training_performance.linear, y = individual_training_p
   scale_x_continuous("by-participant adjustment from linear model") +
   scale_y_continuous("by-participant adjustment from linear model + experiment") +
   facet_wrap(~ Condition2)
+```
 
-cat("Zooming in ...\n")
+Zooming in ...
+
+```{r}
 last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 ```
 
@@ -816,13 +832,7 @@ last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 
 Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial bins) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
 
-```{r}
-m.brm.exp1ab.train.monotonic = brm(IsCorrect ~ Cond.diff * mo(Quintile) +
-                           (1 + Cond.diff | Sentence) + (1 + mo(Quintile) | WorkerID) + (1 | CurrentTalkerID), 
-                         data = d.exp1ab.training, 
-                         family = bernoulli, cores = max.cores, chains = 4, 
-                         warmup = 2000, iter = 4000, 
-                         prior = my.priors, file = "../models/exp1ab.Training.diff.monotonic")
+```{r, fig.width=5}
 plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
                          # set to NULL to add uncertainty about all random effects
                          re_formula = NA), ask = F)
@@ -848,8 +858,11 @@ ggplot(aes(x = individual_training_performance.linear, y = individual_training_p
   scale_x_continuous("by-participant adjustment from linear model") +
   scale_y_continuous("by-participant adjustment from monotonic model") +
   facet_wrap(~ Condition2)
+```
 
-cat("Zooming in ...\n")
+Zooming in ...
+
+```{r}
 last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 ```
 
@@ -860,10 +873,6 @@ In the remainder of the analyses, we thus used the linear model because it is mo
 In the analyses of the test data, we discount for the individual differences in performance at the onset of test. We do so by using the random by-participant intercept from the linear model as **offset** in the mixed-effects logistic regression of the test data. It was therefore important to test whether individual differences during exposure actually predict individual differences during test. To this end, we fit a Bayesian mixed-effect logistic regression, predicting accuracy during test as a function of the individual differences estimated from the linear model. The model also contained random intercepts by participant and item. This revealed a very strong effect of individual differences during exposure on performance during test.
 
 ```{r}
-# SDs
-d.exp1ab.test %>%
-  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x))
-
 nsamples.warmup = 2000
 nsamples.total = 4000
 
@@ -928,8 +937,6 @@ In the analysis of the test data, we thus include the individual differences in 
 
 
 
-
-
 \newpage
 # Test - Experiment 1a
 
@@ -945,7 +952,7 @@ We first present the result summary for the three questions of interest. These a
 
 ```{r, exp1a test block analysis - main level - also plot this}
 nsamples.warmup = 1000
-nsamples.total = 11000
+nsamples.total = nsamples.total.max
 
 # Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
 # ambiguous continuum step (rather than center). Binary factors should be coded to have level-
@@ -975,13 +982,13 @@ my.priors = c(
 #                          prior = my.priors, file = "../models/exp1a.Test.diff")
 
 # offset model
-m.exp1a.test.treat <- brm(IsCorrect ~ Cond.treat + offset(individual_training_performance.linear) +
+m.exp1a.test.treat <- brm(IsCorrect ~ Cond.treat + offset(individual_training_performance.offset) +
                             (1 + Cond.treat | Sentence) + (1 | WorkerID),
                           data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores,
                           warmup = nsamples.warmup, iter = nsamples.total,
                           prior = my.priors, file = "../models/exp1a.Test.treat")
 m.exp1a.test.diff <- brm(IsCorrect ~ 
-                           offset(individual_training_performance.linear) +
+                           offset(individual_training_performance.offset) +
                            1 + Cond.diff + 
                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
                          data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
@@ -1062,14 +1069,7 @@ summary(m.exp1a.test.diff)
 
 ### Additional hypothesis testes
 ```{r, exp1a test block analysis - hypotheses for sliding difference coding}
-xhypotheses(
-  list(
-    hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
-    hypothesis(m.exp1a.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b"),
-    hypothesis(m.exp1a.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")
-#    hypothesis(m.exp1a.test.diff, "Intercept.ranef.1ab > 0", class = "b")
-  )
-)
+xhypotheses(list(hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
 ```
 
 
@@ -1092,7 +1092,6 @@ xhypotheses(
     hypothesis(m.exp1a.test.treat, "Cond.treatTS.vs.CNTL > 0", class = "b"),
     hypothesis(m.exp1a.test.treat, "Cond.treatMT.vs.CNTL > 0", class = "b"),
     hypothesis(m.exp1a.test.treat, "Cond.treatST.vs.CNTL > 0", class = "b")
-#    hypothesis(m.exp1a.test.treat, "Intercept.ranef.1ab  > 0", class = "b")
   )
 )
 ```
@@ -1134,14 +1133,14 @@ xhypotheses(
 
 # offset model
 m.exp1b.test.diff <- brm(IsCorrect ~ 
-                           offset(individual_training_performance.linear) +
+                           offset(individual_training_performance.offset) +
                            1 + Cond.diff + 
                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
                          data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
                          warmup = nsamples.warmup, iter = nsamples.total, 
                          prior = my.priors, file = "../models/exp1b.Test.diff")
 m.exp1b.test.treat <- brm(IsCorrect ~ 
-                            offset(individual_training_performance.linear) +
+                            offset(individual_training_performance.offset) +
                             1 + Cond.treat +
                             (1 + Cond.treat | Sentence) + (1 | WorkerID),  
                           data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
@@ -1189,14 +1188,7 @@ summary(m.exp1b.test.diff)
 
 ### Additional hypothesis tests
 ```{r, exp1b test block analysis - hypotheses for sliding difference coding}
-xhypotheses(
-  list(
-    hypothesis(m.exp1b.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
-    hypothesis(m.exp1b.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b"),
-    hypothesis(m.exp1b.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")
-#    hypothesis(m.exp1b.test.diff, "Intercept.ranef.1ab > 0", class = "b")
-  )
-)
+xhypotheses(list(hypothesis(m.exp1b.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")))
 ```
 
 
@@ -1219,7 +1211,6 @@ xhypotheses(
     hypothesis(m.exp1b.test.treat, "Cond.treatTS.vs.CNTL > 0", class = "b"),
     hypothesis(m.exp1b.test.treat, "Cond.treatMT.vs.CNTL > 0", class = "b"),
     hypothesis(m.exp1b.test.treat, "Cond.treatST.vs.CNTL > 0", class = "b")
-#    hypothesis(m.exp1b.test.treat, "Intercept.ranef.1ab  > 0", class = "b")
   )
 )
 ```
@@ -1285,13 +1276,13 @@ my.priors.wTalker.diff = c(
   # Uniform prior of correlations
   prior(lkj(1), class = cor)
 )
-m.exp1a.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+m.exp1a.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains =  4, 
                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wTestTalker")
-m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
                                    (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4, 
@@ -1310,13 +1301,13 @@ my.priors.wTalker.diff = c(
   # Uniform prior of correlations
   prior(lkj(1), class = cor)
 )
-m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
                                  data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wTestTalker")
-m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
                                    (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
                                  data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
@@ -1769,7 +1760,7 @@ d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
                                   levels = c("1a", "1b"))
 contrasts(d.exp1ab.test$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
 
-m.exp1ab.noAdditionalPredictors.test.diff <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.linear) + 
+m.exp1ab.noAdditionalPredictors.test.diff <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
                          data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
                          warmup = nsamples.warmup, iter = nsamples.total, 
@@ -1819,14 +1810,7 @@ summary(m.exp1ab.noAdditionalPredictors.test.diff)
 
 ## Additional hypothesis testing
 ```{r, exp1ab.noAdditionalPredictors test block analysis - hypotheses for sliding difference coding}
-xhypotheses(
-  list(
-    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffTS.vs.MT > 0", class = "b"),
-    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffMT.vs.ST > 0", class = "b"),
-    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffST.vs.CNTL > 0", class = "b")
-#    hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Intercept.ranef.1ab > 0", class = "b")
-  )
-)
+xhypotheses(list(hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
 ```
 
 
@@ -1847,7 +1831,7 @@ Use the previous data to establish a prior. You may want to construct a normal p
 ```{r, set up replication analysis based on bridge sampling}
 # High number of posterior samples required for bridge_sampling
 nsamples.warmup = 1000
-nsamples.total = 11000
+nsamples.total = nsamples.total.max
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 1: set priors and contrasts
@@ -1875,12 +1859,12 @@ d.exp1b.test = d.exp1ab.test %>% filter(Experiment == "1b") %>% defineContrasts(
 
 ## Treatment coding
 
-```{r, replication analysis with treatment coding}
+```{r, replication analysis with treatment coding, message=F, warning=F}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 2: Run model on original data. But with numerically coded variables instead of contrast
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 m.exp1a.test.treat <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
     (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
     (1 | WorkerID),  
@@ -1955,7 +1939,7 @@ my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
 # Step 4: Run same numerically-coded model on new data, but with priors based on original data  
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 m.exp1b.test.treat.full <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
     (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) +
     (1 | WorkerID),  
@@ -1975,7 +1959,7 @@ m.exp1b.test.treat.full <- brm(
 #         NB: We're keeping the random effects for the null effect in the model.
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 m.exp1b.test.treat.woTS.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
     (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
     (1 | WorkerID),  
@@ -1987,7 +1971,7 @@ m.exp1b.test.treat.woTS.vs.CNTL <- brm(
   file = "../models/exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions"
 )
 m.exp1b.test.treat.woMT.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.treatTS.vs.CNTL + Cond.treatST.vs.CNTL + 
     (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
     (1 | WorkerID),  
@@ -1999,7 +1983,7 @@ m.exp1b.test.treat.woMT.vs.CNTL <- brm(
   file = "../models/exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions"
 )
 m.exp1b.test.treat.woST.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + 
+  IsCorrect ~ offset(individual_training_performance.offset) + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + 
     (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
     (1 | WorkerID),  
   data = d.exp1b.test, family = bernoulli, 
@@ -2013,18 +1997,43 @@ m.exp1b.test.treat.woST.vs.CNTL <- brm(
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 5: Run the bridge sampler on all new models fit to the replication data
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-b1 = bridge_sampler(
-  samples = m.exp1b.test.treat.full, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b1, file = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.rds")
-b2.woTS.vs.CNTL = bridge_sampler(
-  samples = m.exp1b.test.treat.woTS.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woTS.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions.rds")
-b2.woMT.vs.CNTL = bridge_sampler(
-  samples = m.exp1b.test.treat.woMT.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woMT.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions.rds")
-b2.woST.vs.CNTL = bridge_sampler(
-  samples = m.exp1b.test.treat.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woST.vs.CNTL, file = "../models/bridge_exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions.rds")
+filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.rds"
+filename.b2.a = "../models/bridge_exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions.rds"
+filename.b2.b = "../models/bridge_exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions.rds"
+filename.b2.c = "../models/bridge_exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions.rds"
+
+if (!file.exists(filename.b1)) {
+  b1 = bridge_sampler(
+    samples = m.exp1b.test.treat.full, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b1, file = filename.b1)
+} else {
+  b1 = readRDS(file = filename.b1)
+}
+
+if (!file.exists(filename.b2.a)) {
+  b2.woTS.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woTS.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woTS.vs.CNTL, file = filename.b2.a)
+} else {
+  b2.woTS.vs.CNTL = readRDS(file = filename.b2.a)
+}
+
+if (!file.exists(filename.b2.b)) {
+  b2.woMT.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woMT.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woMT.vs.CNTL, file = filename.b2.b)
+} else {
+  b2.woMT.vs.CNTL = readRDS(file = filename.b2.b)
+}
+
+if (!file.exists(filename.b2.c)) {
+  b2.woST.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woST.vs.CNTL, file = filename.b2.c)
+} else {
+  b2.woST.vs.CNTL = readRDS(file = filename.b2.c)
+}
+
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 6: Calculate all the relevant Bayes Factors
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2037,11 +2046,11 @@ bf(b1, b2.woST.vs.CNTL)
 
 ## Sliding difference coding
 
-```{r, replication analysis with sliding difference coding}
+```{r, replication analysis with sliding difference coding, message=F, warning=F}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 2: Run model on original data. But with numerically coded variables instead of contrast
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1a.test.diff <- brm(IsCorrect ~ offset(individual_training_performance.linear) + 
+m.exp1a.test.diff <- brm(IsCorrect ~ offset(individual_training_performance.offset) + 
                            Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
                            (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
                            (1 | WorkerID),  
@@ -2114,7 +2123,7 @@ my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 4: Run same numerically-coded model on new data, but with priors based on original data  
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.diff.full <- brm(IsCorrect ~ offset(individual_training_performance.linear) + 
+m.exp1b.test.diff.full <- brm(IsCorrect ~ offset(individual_training_performance.offset) + 
                                 Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
                                 (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
                                 (1 | WorkerID),  
@@ -2142,7 +2151,7 @@ m.exp1b.test.diff.full <- brm(IsCorrect ~ offset(individual_training_performance
 # the factor.
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 m.exp1b.test.diff.woTS.vs.MT <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
     (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
     (1 | WorkerID),  
@@ -2159,7 +2168,7 @@ m.exp1b.test.diff.woTS.vs.MT <- brm(
   file = "../models/exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions"
 )
 m.exp1b.test.diff.woMT.vs.ST <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.diffTS.vs.MT + Cond.diffST.vs.CNTL +
     (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
     (1 | WorkerID),  
@@ -2175,7 +2184,7 @@ m.exp1b.test.diff.woMT.vs.ST <- brm(
   file = "../models/exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions"
 )
 m.exp1b.test.diff.woST.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
+  IsCorrect ~ offset(individual_training_performance.offset) + 
     Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + 
     (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
     (1 | WorkerID),  
@@ -2195,26 +2204,46 @@ m.exp1b.test.diff.woST.vs.CNTL <- brm(
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 5: Run the bridge sampler on all new models fit to the replication data
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-b1 = bridge_sampler(
-  samples = m.exp1b.test.diff.full, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b1, file = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds")
-b2.woTS.vs.MT = bridge_sampler(
-  samples = m.exp1b.test.diff.woTS.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woTS.vs.MT, file = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds")
-b2.woMT.vs.ST = bridge_sampler(
-  samples = m.exp1b.test.diff.woMT.vs.ST, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woMT.vs.ST, file = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds")
-b2.woST.vs.CNTL = bridge_sampler(
-  samples = m.exp1b.test.diff.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-saveRDS(b2.woST.vs.CNTL, file = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds")
+filename.b1 = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds"
+filename.b2.a = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds"
+filename.b2.b = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds"
+filename.b2.c = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds"
+
+if (!file.exists(filename.b1)) {
+  b1 = bridge_sampler(
+    samples = m.exp1b.test.diff.full, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b1, file = filename.b1)
+} else {
+  b1 = readRDS(file = filename.b1)
+}
+
+if (!file.exists(filename.b2.a)) {
+  b2.woTS.vs.MT = bridge_sampler(
+    samples = m.exp1b.test.diff.woTS.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woTS.vs.MT, file = filename.b2.a)
+} else {
+  b2.woTS.vs.MT = readRDS(file = filename.b2.a)
+}
+
+if (!file.exists(filename.b2.b)) {
+  b2.woMT.vs.ST = bridge_sampler(
+    samples = m.exp1b.test.diff.woMT.vs.ST, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woMT.vs.ST, file = filename.b2.b)
+} else {
+  b2.woMT.vs.ST = readRDS(file = filename.b2.b)
+}
+
+if (!file.exists(filename.b2.c)) {
+  b2.woST.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.diff.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woST.vs.CNTL, file = filename.b2.c)
+} else {
+  b2.woST.vs.CNTL = readRDS(file = filename.b2.c)
+}
+
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 6: Calculate all the relevant Bayes Factors
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-b1 = readRDS(file = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds")
-b2.woTS.vs.MT = readRDS(file = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds")
-b2.woMT.vs.ST = readRDS(file = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds")
-b2.woST.vs.CNTL = readRDS(file = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds")
-
 bf(b1, b2.woTS.vs.MT)
 bf(b1, b2.woMT.vs.ST)
 bf(b1, b2.woST.vs.CNTL)

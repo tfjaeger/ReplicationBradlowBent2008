@@ -783,7 +783,8 @@ add_individual_performance = . %>%
   defineContrasts() %>% 
   standardize() %>%
   # Store offset term to avoid ambiguity
-  mutate(individual_training_performance.offset = individual_training_performance.linear * 0.6365345)
+  mutate(individual_training_performance.offset = individual_training_performance.linear) 
+  # set to * 0.6365345 if coef from training is to be considered)
 
 d.exp1ab.training = 
   rbind(d.exp1a.training, d.exp1b.training) %>%
@@ -828,7 +829,7 @@ Zooming in ...
 last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 ```
 
-### Assuming linear effects of exposure 
+### Relaxing the assumption of linear effects during exposure 
 
 Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial bins) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
 

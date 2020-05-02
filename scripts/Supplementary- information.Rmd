@@ -784,7 +784,8 @@ add_individual_performance = . %>%
   standardize() %>%
   # Store offset term to avoid ambiguity
   mutate(individual_training_performance.offset = individual_training_performance.linear) 
-  # set to * 0.6365345 if coef from training is to be considered)
+  # set to following if coef from training is to be considered in discounting individual differences:
+  # mutate(individual_training_performance.offset = individual_training_performance.linear * 0.6365345) 
 
 d.exp1ab.training = 
   rbind(d.exp1a.training, d.exp1b.training) %>%

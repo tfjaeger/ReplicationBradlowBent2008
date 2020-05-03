@@ -180,39 +180,40 @@ defineContrasts = function(dataset) {
 }
 
 
-table_3effects = function(model.diff, #model.treat = NULL, 
+table_3effects = function(model, 
                           scope = c("standard", "coef", "ranef")[1],
-                          group = c("", "TestTalkerID", "ExposureTestTalkerID")[1], 
+                          group = c("", "TestTalkerID", "TestTalkerID:TrainingTalkerID")[1], 
                           labels = NULL, format = "markdown",
                           ...
 ) {
   if (group == "") assertthat::assert_that(scope == "standard")
   if (group != "") assertthat::assert_that(scope %in% c("coef", "ranef"))
-
-  xhypotheses(
-  list(
-    hypothesis(model.diff, "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffMT.vs.ST > 0", class = "b", scope = scope, group = group)
-  ),
-  labels = rep(
-    c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST"),
-    if (scope == "standard") 1 else 4),
-  ...
-)
   
+  xhypotheses(
+    list(
+      hypothesis(model, "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffMT.vs.ST > 0", class = "b", scope = scope, group = group)
+    ),
+    labels = rep(
+      c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST"),
+      case_when(
+        scope == "standard" ~ 1L,
+        T ~ length(grep(pattern = paste0("^r_", group, ".*Intercept"), x = parnames(model))))),
+    ...
+)
 }
 
 
-plot_3effects = function(model.diff, title, add_plot = NULL, 
+plot_3effects = function(model, title, add_plot = NULL, 
                          color = "black", fill = "lightgray", alpha = .5,
-                         by = c("none", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
+                         by = c("", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
 ) {
   # Names of effects (ordered in the way they are meant to be displayed later)
   effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
 
-  d.m = model.diff %>%
+  d.m = model %>%
     gather_draws(b_Cond.diffST.vs.CNTL, b_Cond.diffMT.vs.ST, b_Cond.diffTS.vs.MT) %>%
     ungroup() %>%
     rename(condition = .variable) %>%
@@ -223,7 +224,7 @@ plot_3effects = function(model.diff, title, add_plot = NULL,
       if (by %in% c("TestTalker", "ExposureTestTalker")) {
         left_join(
           .,
-          model.diff %>%
+          model %>%
             spread_draws(r_TestTalkerID[TestTalker,condition])) %>%
           mutate(
             .value = .value + r_TestTalkerID,
@@ -237,7 +238,7 @@ plot_3effects = function(model.diff, title, add_plot = NULL,
       if (by == "ExposureTestTalker") {
         left_join(
           .,
-          model.diff %>%
+          model %>%
             spread_draws(`r_TestTalkerID:TrainingTalkerID`[ExposureTestTalker,condition])) %>%
           mutate(
             .value = .value + `r_TestTalkerID:TrainingTalkerID`,
@@ -1107,32 +1108,6 @@ xhypotheses(
 # Test - Experiment 1b
 
 ```{r, exp1b test block analysis - main level - also plot this}
-# m.exp1b.test.treat <- brm(IsCorrect ~ Cond.treat + individual_training_performance.linear_s + 
-#                             (1 + Cond.treat | Sentence) + (1 | WorkerID),  
-#                           data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-#                           warmup = nsamples.warmup, iter = nsamples.total, 
-#                           prior = my.priors, file = "../models/exp1b.Test.treat"
-# )
-#
-# m.exp1b.test.diff <- brm(IsCorrect ~ Cond.diff + individual_training_performance.linear_s + 
-#                            (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-#                          data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-#                          warmup = nsamples.warmup, iter = nsamples.total, 
-#                          prior = my.priors, file = "../models/exp1b.Test.diff")
-
-# Without any correction
-# m.exp1b.test.treat.woCorrection <- brm(IsCorrect ~ Cond.treat + 
-#                                          (1 + Cond.treat | Sentence) + (1 | WorkerID),  
-#                                        data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-#                                        warmup = nsamples.warmup, iter = nsamples.total, 
-#                                        prior = my.priors, file = "../models/exp1b.Test.treat.woCorrection")
-# 
-# m.exp1b.test.diff.woCorrection <- brm(IsCorrect ~ Cond.diff + 
-#                                         (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-#                                       data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-#                                       warmup = nsamples.warmup, iter = nsamples.total, 
-#                                       prior = my.priors, file = "../models/exp1b.Test.diff.woCorrection")
-
 # offset model
 m.exp1b.test.diff <- brm(IsCorrect ~ 
                            offset(individual_training_performance.offset) +
@@ -1398,77 +1373,6 @@ table_3effects(m.exp1b.test.diff.wExposureTestTalker,
                scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
 ```
 
-```{r}
-# pars = c("Cond.treatTS.vs.CNTL", "Cond.treatMT.vs.CNTL", "Cond.treatST.vs.CNTL")
-# p.forest.Subject = forest(m.exp1a.test.treat.wExposureTestTalker, 
-#        grouping = "WorkerID",
-#        pars = pars)
-# p.forest.Item = forest(m.exp1a.test.treat.wExposureTestTalker, 
-#        grouping = "Sentence", 
-#        pars = pars)
-# p.forest.TestTalker = forest(m.exp1a.test.treat.wExposureTestTalker, 
-#        grouping = "TestTalkerID",
-#        pars = pars)
-# p.forest.ExposureTestTalker = forest(m.exp1a.test.treat.wExposureTestTalker, 
-#        grouping = 'TestTalkerID:TrainingTalkerID',
-#        pars = pars)
-# 
-# gtable_filter_remove <- function (x, name, trim = TRUE){
-#   require(gtable)
-#   require(grid)
-#   
-#   x <- ggplotGrob(x)
-#   x$layout$name
-# 
-#   matches <- !(x$layout$name %in% name)
-#   x$layout <- x$layout[matches, , drop = FALSE]
-#   x$grobs <- x$grobs[matches]
-#   if (trim) 
-#     x <- gtable_trim(x)
-# 
-#   grid.newpage()
-#   grid.draw(x)
-# }
-# 
-# gtable_filter_remove(p.forest.Item, name = paste0("axis-l-1-", c(2, 3)),
-#                                    trim = TRUE)
-# gtable_filter_remove(p.forest.TestTalker, name = paste0("axis-l-1-", c(2, 3)),
-#                                    trim = TRUE)
-# 
-# m = m.exp1a.test.treat.wExposureTestTalker
-# 
-# effect.names = c("b_Cond.treatTS.vs.CNTL", "b_Cond.treatMT.vs.CNTL")
-# 
-# study.draws <- gather_draws(m, `r_TestTalkerID:TrainingTalkerID`[Talker,Condition], !!! rlang::syms(effect.names)) %>% 
-#   mutate(b_Intercept = `r_TestTalkerID:TrainingTalkerID[TalkerID,Cond.treatTS.vs.CNTL]` + !!! rlang::syms(effect.names))
-# 
-# pooled.effect.draws <- spread_draws(m, !!! rlang::syms(effect.names)) %>% 
-#   mutate(Talker = "Pooled Effect")
-# 
-# forest.data <- bind_rows(study.draws, pooled.effect.draws) %>% 
-#    ungroup() %>%
-#    mutate(Author = str_replace_all(Author, "[.]", " ")) %>% 
-#    mutate(Author = reorder(Author, b_Intercept))
-# 
-# forest.data.summary <- group_by(forest.data, Author) %>% 
-#   mean_qi(b_Intercept)
-# 
-#       
-# ggplot(aes(b_Intercept, relevel(Talker, "Pooled Effect", after = Inf)), 
-#        data = forest.data) +
-#   geom_vline(xintercept = fixef(m.brm)[1, 1], color = "grey", size = 1) +
-#   geom_vline(xintercept = fixef(m.brm)[1, 3:4], color = "grey", linetype = 2) +
-#   geom_vline(xintercept = 0, color = "black", size = 1) +
-#   geom_density_ridges(fill = "blue", rel_min_height = 0.01, col = NA, scale = 1,
-#                       alpha = 0.8) +
-#   geom_pointintervalh(data = forest.data.summary, size = 1) +
-#   geom_text(data = mutate_if(forest.data.summary, is.numeric, round, 2),
-#     aes(label = glue("{b_Intercept} [{.lower}, {.upper}]"), x = Inf), hjust = "inward") +
-#   labs(x = "Standardized Mean Difference",
-#        y = element_blank()) +
-#   theme_minimal()
-```
-
 
 
 
@@ -1639,6 +1543,8 @@ m.exp1b.test.diff.mixedTestTalker = update(m.exp1b.test.diff,
        chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
        control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.mixedTestTalker1-4")
 ```
+
+
 ```{r, fig.width=10}
 # Experiment 1a
 models = list("CMN_M_032" = m.exp1a.test.diff.TestTalker1, 
@@ -2302,9 +2208,10 @@ d.pilot.training$Quintile = as.numeric(cut(d.pilot.training$Trial, breaks = 5, l
 if (file.exists("../models/pilot.Training_IndividualDifferences.rds")) {
   m.pilot.train = readRDS("../models/pilot.Training_IndividualDifferences.rds")
 } else {
-  m.pilot.train <- glmer(IsCorrect ~ Condition2 + Quintile +
-                      (1 + Condition2 | Sentence) + (1 | WorkerID) + (1 | CurrentTalkerID),
-                      data = d.pilot.training, family = binomial)
+  m.pilot.train <- glmer(
+    IsCorrect ~ Condition2 + Quintile +
+      (1 + Condition2 | Sentence) + (1 | WorkerID) + (1 | CurrentTalkerID),
+    data = d.pilot.training, family = binomial)
   saveRDS(m.pilot.train, file = "../models/pilot.Training_IndividualDifferences.rds")
 }
 
@@ -2320,18 +2227,16 @@ d.pilot.predframe_TRAIN$Intercept.ranef <- d.pilot.predframe_TRAIN$`(Intercept)`
 d.pilot.predframe_TRAIN$`(Intercept)` <- NULL
 d.pilot.training <- left_join(d.pilot.training, d.pilot.predframe_TRAIN)
 d.pilot.test <- left_join(d.pilot.test, d.pilot.predframe_TRAIN)
-
 ```
 
 ```{r, pilot test block analysis - main level - also plot this}
 contrasts(d.pilot.test$Condition2) = contr.sum(2) * -1
 colnames(contrasts(d.pilot.test$Condition2)) = ("TS.vs.CNTL")
 
-
-m.pilot.test <- brm(IsCorrect ~ Condition2 + Intercept.ranef + 
-                      (1 + Condition2 | Sentence) + (1 | WorkerID),  
-                    data = d.pilot.test, family = bernoulli, cores = max.cores, file = "../models/pilot.Test")
-
+m.pilot.test <- brm(
+  IsCorrect ~ Condition2 + Intercept.ranef + 
+    (1 + Condition2 | Sentence) + (1 | WorkerID),  
+  data = d.pilot.test, family = bernoulli, cores = max.cores, file = "../models/pilot.Test")
 
 # The model including an interaction term was not significantly different than the one without. 
 # m.pilot.test.interaction <- glmer(IsCorrect ~ Condition.sum * Intercept.ranef + 
@@ -2344,23 +2249,13 @@ m.pilot.test <- brm(IsCorrect ~ Condition2 + Intercept.ranef +
 #     data = d.pilot.test, family = bernoulli, cores = max.cores)
 
 myGplot.defaults(type = "paper")
-d.pilot %>%
+p.test.proportion %+% 
+  (d.pilot %>%
   group_by(WorkerID, Sentence) %>%
   distinct(.keep_all = TRUE) %>%
   filter(PartOfExp == "test") %>% 
   group_by(WorkerID, Condition2) %>%
-	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
-	ggplot(aes(x = Condition2, y = PropKeywordsCorrect, colour = Condition2, fill = Condition2)) +
-  	stat_summary(fun = mean, geom = "point", alpha = 1, size= 1.1, stroke=3) +
-		geom_dotplot(binaxis = "y", binwidth = 0.015, stackdir = "center", alpha = .3, position = position_dodge(.9)) +
-  	stat_summary(fun.data = mean_cl_boot, geom = "errorbar", width = 0.2, linetype=1, size =1)+ 
-    xlab("Exposure condition") +
-		scale_y_continuous("Proportion of keywords correctly transcribed") +
-    scale_colour_manual("Exposure Condition", values = setNames(colors.exposure[c(1,4)], levels.exposure[c(1,4)])) +
-    scale_fill_manual("Exposure Condition", values = setNames(colors.exposure[c(1,4)], levels.exposure[c(1,4)])) +
-    coord_cartesian(ylim = c(0.3,1.02)) +
-    theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
-
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)))
 ggsave(filename = "../figures/p.pilot.ts.cntl.pdf", device = cairo_pdf, width = 3, height = 4, dpi=300)
 ```
 
@@ -2373,9 +2268,7 @@ summary(m.pilot.test)
 xhypotheses(
   list(
     hypothesis(m.pilot.test, "Condition2TS.vs.CNTL > 0", class = "b"),
-    hypothesis(m.pilot.test, "Intercept.ranef > 0", class = "b")
-  )
-)
+    hypothesis(m.pilot.test, "Intercept.ranef > 0", class = "b")))
 ```
 
 

@@ -1592,6 +1592,7 @@ Finally, we provide the full model output for the models with random effects by 
 ```{r, exp1a test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}
 summary(m.exp1a.test.diff.wTestTalker)
 ```
+
 ### Experiment 1b
 
 ```{r, exp1b test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}

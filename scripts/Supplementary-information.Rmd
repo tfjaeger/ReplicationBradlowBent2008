@@ -207,7 +207,7 @@ table_3effects = function(model.diff, #model.treat = NULL,
 
 plot_3effects = function(model.diff, title, add_plot = NULL, 
                          color = "black", fill = "lightgray", alpha = .5,
-                         by = c("none", "TestTalker", "ExposureTestTalker")[1]
+                         by = c("none", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
 ) {
   # Names of effects (ordered in the way they are meant to be displayed later)
   effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
@@ -1380,9 +1380,9 @@ plot_3effects(m.exp1a.test.diff.wExposureTestTalker,
 ggsave(filename = "../figures/exp1a_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
 
 table_3effects(m.exp1a.test.diff.wExposureTestTalker, 
-               scope = "coef", group = "ExposureTestTalkerID")
+               scope = "coef", group = "TestTalkerID:TrainingTalkerID")
 table_3effects(m.exp1a.test.diff.wExposureTestTalker, 
-               scope = "ranef", group = "ExposureTestTalkerID")
+               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
 ```
 
 ### Experiment 1b
@@ -1393,9 +1393,9 @@ plot_3effects(m.exp1b.test.diff.wExposureTestTalker,
 ggsave(filename = "../figures/exp1b_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
 
 table_3effects(m.exp1b.test.diff.wExposureTestTalker, 
-               scope = "coef", group = "ExposureTestTalkerID")
+               scope = "coef", group = "TestTalkerID:TrainingTalkerID")
 table_3effects(m.exp1b.test.diff.wExposureTestTalker, 
-               scope = "ranef", group = "ExposureTestTalkerID")
+               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
 ```
 
 ```{r}
@@ -1791,18 +1791,22 @@ d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
                                   levels = c("1a", "1b"))
 contrasts(d.exp1ab.test$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
 
-m.exp1ab.noAdditionalPredictors.test.diff <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-                           (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-                         data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-                         warmup = nsamples.warmup, iter = nsamples.total, 
-                         prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
+m.exp1ab.noAdditionalPredictors.test.diff <- brm(
+  IsCorrect ~ 
+    offset(individual_training_performance.offset) + Cond.diff + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
 
 # Without any correction
-m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(IsCorrect ~ Cond.diff + 
-                                        (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-                                      data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-                                      warmup = nsamples.warmup, iter = nsamples.total, 
-                                      prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
+m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(
+  IsCorrect ~ 
+    Cond.diff + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
 
 myGplot.defaults(type = "paper")
 p.test.proportion %+%

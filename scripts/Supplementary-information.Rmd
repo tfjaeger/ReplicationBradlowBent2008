@@ -180,39 +180,40 @@ defineContrasts = function(dataset) {
 }
 
 
-table_3effects = function(model.diff, #model.treat = NULL, 
+table_3effects = function(model, 
                           scope = c("standard", "coef", "ranef")[1],
-                          group = c("", "TestTalkerID", "ExposureTestTalkerID")[1], 
+                          group = c("", "TestTalkerID", "TestTalkerID:TrainingTalkerID")[1], 
                           labels = NULL, format = "markdown",
                           ...
 ) {
   if (group == "") assertthat::assert_that(scope == "standard")
   if (group != "") assertthat::assert_that(scope %in% c("coef", "ranef"))
-
-  xhypotheses(
-  list(
-    hypothesis(model.diff, "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
-    hypothesis(model.diff, "Cond.diffMT.vs.ST > 0", class = "b", scope = scope, group = group)
-  ),
-  labels = rep(
-    c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST"),
-    if (scope == "standard") 1 else 4),
-  ...
-)
   
+  xhypotheses(
+    list(
+      hypothesis(model, "Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffST.vs.CNTL > 0", class = "b", scope = scope, group = group),
+      hypothesis(model, "Cond.diffMT.vs.ST > 0", class = "b", scope = scope, group = group)
+    ),
+    labels = rep(
+      c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST"),
+      case_when(
+        scope == "standard" ~ 1L,
+        T ~ length(grep(pattern = paste0("^r_", group, ".*Intercept"), x = parnames(model))))),
+    ...
+)
 }
 
 
-plot_3effects = function(model.diff, title, add_plot = NULL, 
+plot_3effects = function(model, title, add_plot = NULL, 
                          color = "black", fill = "lightgray", alpha = .5,
-                         by = c("none", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
+                         by = c("", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
 ) {
   # Names of effects (ordered in the way they are meant to be displayed later)
   effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
 
-  d.m = model.diff %>%
+  d.m = model %>%
     gather_draws(b_Cond.diffST.vs.CNTL, b_Cond.diffMT.vs.ST, b_Cond.diffTS.vs.MT) %>%
     ungroup() %>%
     rename(condition = .variable) %>%
@@ -223,7 +224,7 @@ plot_3effects = function(model.diff, title, add_plot = NULL,
       if (by %in% c("TestTalker", "ExposureTestTalker")) {
         left_join(
           .,
-          model.diff %>%
+          model %>%
             spread_draws(r_TestTalkerID[TestTalker,condition])) %>%
           mutate(
             .value = .value + r_TestTalkerID,
@@ -237,7 +238,7 @@ plot_3effects = function(model.diff, title, add_plot = NULL,
       if (by == "ExposureTestTalker") {
         left_join(
           .,
-          model.diff %>%
+          model %>%
             spread_draws(`r_TestTalkerID:TrainingTalkerID`[ExposureTestTalker,condition])) %>%
           mutate(
             .value = .value + `r_TestTalkerID:TrainingTalkerID`,
@@ -1639,6 +1640,8 @@ m.exp1b.test.diff.mixedTestTalker = update(m.exp1b.test.diff,
        chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
        control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.mixedTestTalker1-4")
 ```
+
+
 ```{r, fig.width=10}
 # Experiment 1a
 models = list("CMN_M_032" = m.exp1a.test.diff.TestTalker1, 

@@ -896,16 +896,69 @@ my.priors = c(
     # prior(lkj(1), class = cor)
 )
 
-m.exp1ab.test.fromTraining <- brm(IsCorrect ~ 
-                           1 + individual_training_performance.linear_s +
-                           (1 | Sentence) + (1 | WorkerID),  
-                         data = d.exp1ab.test %>% standardize(), 
-                         family = bernoulli, cores = 4, chains = 4, 
-                         warmup = nsamples.warmup, iter = nsamples.total, 
-                         prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences")
+m.exp1ab.test.fromTraining <- brm(
+  IsCorrect ~ 
+    1 + individual_training_performance.linear_s +
+    (1 | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test %>% standardize(), 
+  family = bernoulli, cores = 4, chains = 4, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences")
 hypothesis(m.exp1ab.test.fromTraining, "individual_training_performance.linear_s > 0")
 ```
-The effect of this predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance (SD = .60):
+
+Separated by exposure condition, we see some variability in the exact estimate of how much individual differences estimated during exposure affect performance during test, but overall the estimated coefficients show a remarkable degree of agreement across the four (entirely non-overlapping) test data for the four different exposure conditions:
+
+```{r}
+m.exp1ab.test.fromTraining.onlyTS <- brm(
+  IsCorrect ~ 
+    1 + individual_training_performance.linear_s +
+    (1 | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test %>% 
+    filter(Cond.diff == "Talker-specific") %>%
+    standardize(), 
+  family = bernoulli, cores = 4, chains = 4, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyTS")
+hypothesis(m.exp1ab.test.fromTraining.onlyTS, "individual_training_performance.linear_s > 0")
+
+m.exp1ab.test.fromTraining.onlyMT <- brm(
+  IsCorrect ~ 
+    1 + individual_training_performance.linear_s +
+    (1 | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test %>% 
+    filter(Cond.diff == "Multi-talker") %>%
+    standardize(), 
+  family = bernoulli, cores = 4, chains = 4, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyMT")
+hypothesis(m.exp1ab.test.fromTraining.onlyMT, "individual_training_performance.linear_s > 0")
+
+m.exp1ab.test.fromTraining.onlyST <- brm(
+  IsCorrect ~ 
+    1 + individual_training_performance.linear_s +
+    (1 | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test %>% 
+    filter(Cond.diff == "Single talker") %>%
+    standardize(), 
+  family = bernoulli, cores = 4, chains = 4, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyST")
+hypothesis(m.exp1ab.test.fromTraining.onlyST, "individual_training_performance.linear_s > 0")
+
+m.exp1ab.test.fromTraining.onlyCNTL <- brm(
+  IsCorrect ~ 
+    1 + individual_training_performance.linear_s +
+    (1 | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test %>% 
+    filter(Cond.diff == "Control") %>%
+    standardize(), 
+  family = bernoulli, cores = 4, chains = 4, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyCNTL")
+hypothesis(m.exp1ab.test.fromTraining.onlyCNTL, "individual_training_performance.linear_s > 0")
+```
+Going back to the combined test data from all four exposure conditions, the effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance (SD = .60):
 
 ```{r}
 summary(m.exp1ab.test.fromTraining)

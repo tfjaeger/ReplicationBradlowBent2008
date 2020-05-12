@@ -62,7 +62,6 @@ knitr::knit_hooks$set(warning = color_block('orange'))
 # TO DO
  + SHOULD POSTERIOR SAMPLES BE WEIGHTED BY LOG-P?
  + CHECK WHETHER SET COULD MAYBE ACCOUNT FOR BY-TEST TALKER DIFFERENCES.
- + CHECK WHAT COEFFICIENT ONE WOULD GET BY FITTING TEST DATA FROM BOTH EXPERIMENTS (PERHAPS SEPARATELY BY CONDITION) PREDICED FROM INDIVIDUAL DIFFERENCES IN TRAINING, AND THEN USE THAT COEFFICIENT FOR OFFSET. 
 
 ```{r functions, echo=FALSE}
 library(tidyverse)
@@ -70,21 +69,13 @@ library(magrittr)
 library(modelr)
 library(broom)
 library(cowplot)
-#library(grid)
-#library(gridExtra)
-#library(gtools)
-#library(ggstance)
 library(ggridges)
-#library(ggthemes)
 library(scales)
 library(viridis)
-#library(RColorBrewer)
 library(lme4)
 library(brms)
-# library(brmstools)
 library(bridgesampling)
 library(tidybayes)
-# library(shinystan)
 library(bayesplot)
 library(actuar)
 library(fitdistrplus)
@@ -144,6 +135,26 @@ defineContrasts = function(dataset) {
         Cond.treat == "Multi-talker" ~ 0,
         Cond.treat == "Single talker" ~ 1,
         T ~ 0
+      ),
+      # This numerical coding is used to address question 3 through treatment coding in the
+      # replication analysis
+      Cond.treatTS.vs.MT = case_when(
+        Cond.treat == "Talker-specific" ~ 1,
+        Cond.treat == "Multi-talker" ~ 0,
+        Cond.treat == "Single talker" ~ 0,
+        T ~ 0
+      ),
+      Cond.treatST.vs.MT = case_when(
+        Cond.treat == "Talker-specific" ~ 0,
+        Cond.treat == "Multi-talker" ~ 0,
+        Cond.treat == "Single talker" ~ 1,
+        T ~ 0
+      ),
+      Cond.treatCNTL.vs.MT = case_when(
+        Cond.treat == "Talker-specific" ~ 0,
+        Cond.treat == "Multi-talker" ~ 0,
+        Cond.treat == "Single talker" ~ 0,
+        T ~ 1
       ),
       # For the sake of continuity (previously run models), reverse factor order here
       Cond.diff = factor(Condition2, levels = rev(levels.exposure)),
@@ -1051,8 +1062,6 @@ m.exp1a.test.diff <- brm(IsCorrect ~
                          warmup = nsamples.warmup, iter = nsamples.total, 
                          prior = my.priors, file = "../models/exp1a.Test.diff")
 
-
-
 # Without any correction for a priori performance
 # m.exp1a.test.treat.woCorrection <- brm(IsCorrect ~ Cond.treat + 
 #                                          (1 + Cond.treat | Sentence) + (1 | WorkerID),  
@@ -1743,7 +1752,7 @@ ggsave(filename = "../figures/Change in test performance (1st Quintile) over sub
 
 \newpage
 
-# Meta-analysis - Combined data of Experiments 1a and 1b (RERUN META-ANALYSIS MODEL)
+# Meta-analysis - Combined data of Experiments 1a and 1b
 We combine the data from both experiments and then repeats the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability.
 
 ```{r, exp1ab.noAdditionalPredictors test block analysis - main level - also plot this}
@@ -1760,13 +1769,13 @@ m.exp1ab.noAdditionalPredictors.test.diff <- brm(
   prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
 
 # Without any correction
-m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(
-  IsCorrect ~ 
-    Cond.diff + 
-    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-  data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-  warmup = nsamples.warmup, iter = nsamples.total, 
-  prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
+# m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(
+#   IsCorrect ~ 
+#     Cond.diff + 
+#     (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#   data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#   warmup = nsamples.warmup, iter = nsamples.total, 
+#   prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
 
 myGplot.defaults(type = "paper")
 p.test.proportion %+%
@@ -1852,7 +1861,7 @@ d.exp1b.test = d.exp1ab.test %>% filter(Experiment == "1b") %>% defineContrasts(
 ```
 
 
-## Treatment coding
+## Questions 1-2 + Talker-specific adaptation
 
 ```{r, replication analysis with treatment coding, message=F, warning=F}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -2039,31 +2048,31 @@ bf(b1, b2.woST.vs.CNTL)
 
 
 
-## Sliding difference coding
+## Questions 3
 
-```{r, replication analysis with sliding difference coding, message=F, warning=F}
+To test replication of Question 3, we are recoding all treatment contrasts so that the multi-talker condition is the baseline. This allows us to assess replication of the treatment effect of the single talker condition, compared to the multi-talker baseline.
+
+```{r, replication analysis with treatment coding for Question 3}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 2: Run model on original data. But with numerically coded variables instead of contrast
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1a.test.diff <- brm(IsCorrect ~ offset(individual_training_performance.offset) + 
-                           Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
-                           (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
-                           (1 | WorkerID),  
-                         data = d.exp1a.test, family = bernoulli, 
-                         iter = nsamples.total, warmup = nsamples.warmup, 
-                         chains = max.cores, cores = max.cores,
-                         prior = my.priors, 
-                         save_model = "../models/m.exp1a.test.diff.full.numerically_coded_conditions.stan", 
-                         file = "../models/exp1a.Test.diff.numerical_coded_conditions"
+m.exp1a.test.treat.Q3 <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1a.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.priors, 
+  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.Q3.stan", 
+  file = "../models/exp1a.Test.treat.numerical_coded_conditions.Q3"
 )
-
-# Let's look at this model
-# stancode(m.exp1a.test.diff)
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 3: Derive priors from original data.
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-model = m.exp1a.test.diff
+model = m.exp1a.test.treat.Q3
 p = posterior_samples(model)
 
 p %<>%
@@ -2107,142 +2116,71 @@ my.newpriors = c(
   set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
   set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
   set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
-#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
   prior(lkj(1), class = cor)
 )
-my.newpriors.woTS.vs.MT = my.newpriors[-3,]
-my.newpriors.woMT.vs.ST = my.newpriors[-1,]
-my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
-
+my.newpriors.woST.vs.MT = my.newpriors[-2,]
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 4: Run same numerically-coded model on new data, but with priors based on original data  
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.diff.full <- brm(IsCorrect ~ offset(individual_training_performance.offset) + 
-                                Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
-                                (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) + 
-                                (1 | WorkerID),  
-                              data = d.exp1b.test, family = bernoulli, 
-                              iter = nsamples.total, warmup = nsamples.warmup, 
-                              chains = max.cores, cores = max.cores,
-                              prior = my.newpriors, save_all_pars = T, 
-                              save_model = "../models/m.exp1b.test.diff.full.numerically_coded_conditions.stan", 
-                              file = "../models/exp1b.Test.diff.numerical_coded_conditions"
+m.exp1b.test.treat.full.Q3 <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) +
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.Q3.stan", 
+  file = "../models/exp1b.Test.treat.numerical_coded_conditions.Q3"
 )
-
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
 #         with one parameter set to 0 (removed). Again use priors based on original data. 
-#         
-#         NB: We're keeping the random effects for the null effect in the model.
-#
-# For sliding difference coding the removal of a single contrast wouldn't actually correspond 
-# to removing that sliding difference from the model (the interpretation of the individual 
-# contrasts changes depending on what contrasts are in the model). Instead, we are using 3-way
-# sliding difference coding (instead of 4-way) in each grouping the two levels together for 
-# the sliding contrast has been removed. For example, for the model that removes the sliding 
-# contrast between ST and CNTL, we are grouping ST and CNTL together as the first level of 
-# the factor.
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.diff.woTS.vs.MT <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL + 
-    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
+m.exp1b.test.treat.woST.vs.MT <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
     (1 | WorkerID),  
-  # Collapse Talker-specific and multi-talker condition
-  data = d.exp1b.test %>%
-    mutate(
-      Cond.diffMT.vs.ST = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker"), 2/3, -1/3),
-      Cond.diffST.vs.CNTL = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker", "Single talker"), 1/3, -2/3)), 
-  family = bernoulli, 
+  data = d.exp1b.test, family = bernoulli, 
   iter = nsamples.total, warmup = nsamples.warmup, 
   chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woTS.vs.MT, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.diff.woTS.vs.MT.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions"
-)
-m.exp1b.test.diff.woMT.vs.ST <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.diffTS.vs.MT + Cond.diffST.vs.CNTL +
-    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
-    (1 | WorkerID),  
-  # Collapse multi-talker and single talker condition
-  data = d.exp1b.test %>%
-    mutate(
-      Cond.diffTS.vs.MT = ifelse(Cond.diff %in% c("Talker-specific"), 2/3, -1/3),
-      Cond.diffST.vs.CNTL = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker", "Single talker"), 1/3, -2/3)), family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woMT.vs.ST, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.diff.woMT.vs.ST.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions"
-)
-m.exp1b.test.diff.woST.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + 
-    (1 + Cond.diffTS.vs.MT + Cond.diffMT.vs.ST + Cond.diffST.vs.CNTL | Sentence) +
-    (1 | WorkerID),  
-  # Collapse single talker and control condition
-  data = d.exp1b.test %>%
-    mutate(
-      Cond.diffTS.vs.MT = ifelse(Cond.diff %in% c("Talker-specific"), 2/3, -1/3),
-      Cond.diffMT.vs.ST = ifelse(Cond.diff %in% c("Talker-specific", "Multi-talker"), 1/3, -2/3)), 
-  family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woST.vs.CNTL, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.diff.woST.vs.CNTL.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions"
+  prior = my.newpriors.woST.vs.MT, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woST.vs.MT.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions"
 )
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 5: Run the bridge sampler on all new models fit to the replication data
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-filename.b1 = "../models/bridge_exp1b.Test.diff.numerical_coded_conditions.rds"
-filename.b2.a = "../models/bridge_exp1b.Test.diff.woTS.vs.MT.numerical_coded_conditions.rds"
-filename.b2.b = "../models/bridge_exp1b.Test.diff.woMT.vs.ST.numerical_coded_conditions.rds"
-filename.b2.c = "../models/bridge_exp1b.Test.diff.woST.vs.CNTL.numerical_coded_conditions.rds"
+filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.Q3.rds"
+filename.b2.a = "../models/bridge_exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions.rds"
 
 if (!file.exists(filename.b1)) {
   b1 = bridge_sampler(
-    samples = m.exp1b.test.diff.full, cores = 8, method = "warp3", maxiter = 1000)
+    samples = m.exp1b.test.treat.full.Q3, cores = 8, method = "warp3", maxiter = 1000)
   saveRDS(b1, file = filename.b1)
 } else {
   b1 = readRDS(file = filename.b1)
 }
 
 if (!file.exists(filename.b2.a)) {
-  b2.woTS.vs.MT = bridge_sampler(
-    samples = m.exp1b.test.diff.woTS.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woTS.vs.MT, file = filename.b2.a)
+  b2.woST.vs.MT = bridge_sampler(
+    samples = m.exp1b.test.treat.woST.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woST.vs.MT, file = filename.b2.a)
 } else {
-  b2.woTS.vs.MT = readRDS(file = filename.b2.a)
-}
-
-if (!file.exists(filename.b2.b)) {
-  b2.woMT.vs.ST = bridge_sampler(
-    samples = m.exp1b.test.diff.woMT.vs.ST, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woMT.vs.ST, file = filename.b2.b)
-} else {
-  b2.woMT.vs.ST = readRDS(file = filename.b2.b)
-}
-
-if (!file.exists(filename.b2.c)) {
-  b2.woST.vs.CNTL = bridge_sampler(
-    samples = m.exp1b.test.diff.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woST.vs.CNTL, file = filename.b2.c)
-} else {
-  b2.woST.vs.CNTL = readRDS(file = filename.b2.c)
+  b2.woST.vs.MT = readRDS(file = filename.b2.a)
 }
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 6: Calculate all the relevant Bayes Factors
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bf(b1, b2.woTS.vs.MT)
-bf(b1, b2.woMT.vs.ST)
-bf(b1, b2.woST.vs.CNTL)
+bf(b1, b2.woST.vs.MT)
 ```
+
 
 
 

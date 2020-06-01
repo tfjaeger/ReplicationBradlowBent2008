@@ -2346,21 +2346,24 @@ To analyze whether subjective similarity between the exposure and test talker pr
 For Experiment 1a, there is positive support for the the hypothesis that the subjective similarity between the exposure and test talker predicts the accuracy during test:
 
 ```{r}
-summary(m.exp1a.similarity.ST)
+summary(m.exp1a.subjective_similarity.ST)
 ```
 
 For Experiment 1b, however, the opposite relationship was observed:
 
 ```{r}
-summary(m.exp1b.similarity.ST)
+summary(m.exp1b.subjective_similarity.ST)
 ```
 
 
 
 ## Objective similarity in vowel statistics
 
-MORE INFORMATION HERE
+MORE INFORMATION HERE. INCL. DOWNSIDES / LIMTATIONS OF THIS APPROACH
 
+### Summary of similarity scores
+
+The following plots show the predicted accuracy of an ideal observer applied to the vowel's of the test talker, based on training on the vowels of the exposure talker.  
 
 ```{r}
 load("../data/talker-similarity.RData")
@@ -2430,7 +2433,11 @@ last_plot() +
   facet_wrap(~ TestTalker, scales = "free_x") 
 ggsave(filename = "../figures/similarity-objective-by test talker.pdf",
        width = 6, height = 7)
+```
 
+### Predicting talker-to-talker generalization in the single talker condition
+
+```{r}
 run_objective_similarity_analysis = function(
   d, 
   experiment = c("1a", "1b"), 
@@ -2475,6 +2482,18 @@ m.exp1b.objective_similarity.ST = run_objective_similarity_analysis(
   experiment = "1b",
   filename = "exp1b.objective_similarity.ST")
 ```
+For Experiment 1a, there is no support for the the hypothesis that the ideal observer predicted accuracy on the test talker's vowels predicts the actual accuracy of human listeners during test:
+
+```{r}
+summary(m.exp1a.objective_similarity.ST)
+```
+
+The same holds for Experiment 1b:
+
+```{r}
+summary(m.exp1b.objective_similarity.ST)
+```
+
 
 
 

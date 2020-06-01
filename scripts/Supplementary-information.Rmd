@@ -60,8 +60,11 @@ knitr::knit_hooks$set(warning = color_block('orange'))
 
 
 # TO DO
- + SHOULD POSTERIOR SAMPLES BE WEIGHTED BY LOG-P?
+ + RECODE EXPOSURE-TEST TALKER COMBINATION
+   ++ UPDATE FUNCTIONS TO DEAL WITH NEW CODING.
+ + INCLUDE objective SIMILARITY ANALYSIS?
  + CHECK WHETHER SET COULD MAYBE ACCOUNT FOR BY-TEST TALKER DIFFERENCES.
+ + FILL IN DETAILS ABOUT HOW SIMILARITY MEASURES WERE OBTAINED.
 
 ```{r functions, echo=FALSE}
 library(tidyverse)
@@ -98,11 +101,13 @@ colors.exposure = c("#B1B1B1", "#1F78B4", "#33A02C", "#E31A1C")
 colors.model = viridis::viridis_pal()(3)  # without by-talker effects, by test talker, by exposure-test talker combinations
 
 
+my_scale = function(x) (x - mean(x)) / (2 * sd(x))
+
 standardize = function(dataset) {
   dataset %>%
     mutate_at(vars(starts_with("individual_training_performance")),
       # Standardize continuous predictor (following Gelman, 2008)
-      .funs = list("s" = function(x) (x - mean(x)) / (2 * sd(x)) )
+      .funs = list("s" =  my_scale)
     )
 }
 
@@ -455,11 +460,8 @@ d.pilot <- d.full %>%
   droplevels(.) %>%
   mutate(Experiment = "Pilot")
 
-# Experiment 1a (formerly 2a): ts, cntl, st, mt
-d.exp1a <- d.full %>%
-  filter(Exp2_subj == "yes") %>%
-  droplevels(.) %>%
-  mutate(Experiment = "1a") %>%
+# Apply this pipe to Exp 1a and 1b
+prepare_talkerIDs = . %>%
   # Repair exposure talker ID
   arrange(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp, Trial) %>%
   # Get the unique order of exposure talkers (for this, we group by part of experiment)
@@ -472,34 +474,30 @@ d.exp1a <- d.full %>%
   # that test trials come before training trials
   mutate(
     TrainingTalkerID = last(TrainingTalkerID),
+     # Set training talker ID to 0 if the condition is no single talker
+    TrainingUnderTestTalkerID = case_when(
+      Condition2 == "Single talker" ~ TrainingTalkerID,
+      T ~ "0"
+    ),
     TestTalkerID = first(CurrentTalkerID),
     FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
   ungroup() %>%
-  mutate_at(c("TrainingTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
+  mutate_at(c("TrainingTalkerID", "TrainingUnderTestTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
   droplevels()
+
+# Experiment 1a (formerly 2a): ts, cntl, st, mt
+d.exp1a <- d.full %>%
+  filter(Exp2_subj == "yes") %>%
+  droplevels(.) %>%
+  mutate(Experiment = "1a") %>%
+  prepare_talkerIDs()
 
 ### Experiment 1b (formerly 2b or Replication: Full rep of Exp2)
 d.exp1b <- d.full %>%
   filter(ExpRep_subj == "yes") %>%
   droplevels(.) %>%
   mutate(Experiment = "1b") %>%
-  # Repair exposure talker ID
-  arrange(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp, Trial) %>%
-  # Get the unique order of exposure talkers (for this, we group by part of experiment)
-  group_by(Experiment, Condition2, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp) %>%
-  mutate(TrainingTalkerID = paste(unique(CurrentTalkerID), collapse = "__")) %>%
-  # Now make sure that this information is shared at the worker ID level (so that it will
-  # be available for the test trials)
-  group_by(Experiment, Condition2, TrainingTestSet, ListNum, WorkerID) %>%
-  # The following works only because we've sorted (a.o. things) by PartOfExp above, which means 
-  # that test trials come before training trials
-  mutate(
-    TrainingTalkerID = last(TrainingTalkerID),
-    TestTalkerID = first(CurrentTalkerID),
-    FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
-  ungroup() %>%
-  mutate_at(c("TrainingTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
-  droplevels()
+  prepare_talkerIDs()
 
 # Keep only distinct workers in the combined data frame.
 d.exp1ab = rbind(d.exp1a, d.exp1b) %>%
@@ -795,9 +793,9 @@ add_individual_performance = . %>%
   defineContrasts() %>% 
   standardize() %>%
   # Store offset term to avoid ambiguity
-  mutate(individual_training_performance.offset = individual_training_performance.linear) 
+  mutate(individual_training_performance.offset = individual_training_performance.linear)
   # set to following if coef from training is to be considered in discounting individual differences:
-  # mutate(individual_training_performance.offset = individual_training_performance.linear * 0.6365345) 
+  # mutate(individual_training_performance.offset = individual_training_performance.linear * 0.6365345)
 
 d.exp1ab.training = 
   rbind(d.exp1a.training, d.exp1b.training) %>%
@@ -1049,18 +1047,21 @@ my.priors = c(
 #                          prior = my.priors, file = "../models/exp1a.Test.diff")
 
 # offset model
-m.exp1a.test.treat <- brm(IsCorrect ~ Cond.treat + offset(individual_training_performance.offset) +
-                            (1 + Cond.treat | Sentence) + (1 | WorkerID),
-                          data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores,
-                          warmup = nsamples.warmup, iter = nsamples.total,
-                          prior = my.priors, file = "../models/exp1a.Test.treat")
-m.exp1a.test.diff <- brm(IsCorrect ~ 
-                           offset(individual_training_performance.offset) +
-                           1 + Cond.diff + 
-                           (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-                         data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-                         warmup = nsamples.warmup, iter = nsamples.total, 
-                         prior = my.priors, file = "../models/exp1a.Test.diff")
+m.exp1a.test.treat <- brm(
+  IsCorrect ~ Cond.treat + offset(individual_training_performance.offset) +
+    (1 + Cond.treat | Sentence) + (1 | WorkerID),
+  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores,
+  warmup = nsamples.warmup, iter = nsamples.total,
+  prior = my.priors, file = "../models/exp1a.Test.treat")
+
+m.exp1a.test.diff <- brm(
+  IsCorrect ~ 
+    offset(individual_training_performance.offset) +
+    1 + Cond.diff + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1a.Test.diff")
 
 # Without any correction for a priori performance
 # m.exp1a.test.treat.woCorrection <- brm(IsCorrect ~ Cond.treat + 
@@ -1307,7 +1308,7 @@ nsamples.total.wTalker = 5000
 my.priors.wTalker.diff = c(
   # Prior on intercept was necessary for convergence. 
   # Set to value observed in models without talker random effects
-  prior(student_t(7,2.12,2.5), class = "Intercept"),
+  prior(student_t(3,2.12,2.5), class = "Intercept"),
   # Following Gelman et al (2008) and later revisions on wiki.
   prior(student_t(3,0,2.5), class = b),
   # I used a smaller scale to aid convergence, 5 is a common choice for logit models
@@ -1329,10 +1330,50 @@ m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(indi
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposureTestTalker")
 
+
+# ******************************************************** NEW PART *********************************
+# ******************************************************** NEW PART *********************************
+# ******************************************************** NEW PART *********************************
+# ******************************************************** NEW PART *********************************
+# ******************************************************** NEW PART *********************************
+# ******************************************************** NEW PART *********************************
+my.priors.wExposureTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(10,2.12,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,2.5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+# m.exp1a.test.diff.wExposure_embedded_under_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
+#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+#                                    (1 + Cond.diff | TestTalkerID / TrainingUnderTestTalkerID),
+#                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4,
+#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+#                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_embedded_under_TestTalker")
+
+m.exp1a.test.diff.wExposure_crossed_with_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
+                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+                                   (1 + Cond.diff | TestTalkerID) + 
+                                   (1 | TrainingUnderTestTalkerID),
+                                 data = d.exp1a.test %>%
+                                   mutate(TrainingUnderTestTalkerID =
+                                            ifelse(Condition2 == "Single talker",
+                                                   paste(TrainingUnderTestTalkerID, TestTalkerID, sep = "__"),
+                                                   "0")), 
+                                 family = bernoulli, cores = max.cores, chains = 4,
+                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+                                 control = list(adapt_delta = 0.99999, max_treedepth = 15),
+                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_crossed_with_TestTalker")
+
+
 ###################################### Experiment 1b
 my.priors.wTalker.diff = c(
   # Prior on intercept was necessary for convergence.
-  prior(student_t(7,2.20,2.5), class = "Intercept"),
+  prior(student_t(3,2.20,2.5), class = "Intercept"),
   # Following Gelman et al (2008) and later revisions on wiki.
   prior(student_t(3,0,2.5), class = b),
   # I used a smaller scale to aid convergence, 5 is a common choice for logit models
@@ -1353,6 +1394,33 @@ m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(indi
                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wExposureTestTalker")
+
+my.priors.wExposureTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(10,2.20,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,2.5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+m.exp1b.test.diff.wExposure_crossed_with_TestTalker <- brm(
+  IsCorrect ~ 
+    Cond.diff + offset(individual_training_performance.offset) +
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+    (1 + Cond.diff | TestTalkerID) + 
+    (1 | TrainingUnderTestTalkerID),
+  data = d.exp1b.test %>%
+    mutate(TrainingUnderTestTalkerID =
+             ifelse(Condition2 == "Single talker",
+                    paste(TrainingUnderTestTalkerID, TestTalkerID, sep = "__"),
+                    "0")), 
+  family = bernoulli, cores = max.cores, chains = 4,
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+  control = list(adapt_delta = 0.99999, max_treedepth = 15),
+  prior = my.priors.wExposureTalker.diff, 
+  file = "../models/exp1b.Test.diff.wExposure_crossed_with_TestTalker")
 ```
 
 
@@ -2180,6 +2248,234 @@ if (!file.exists(filename.b2.a)) {
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 bf(b1, b2.woST.vs.MT)
 ```
+
+
+# Similarity-based analysis
+
+To assess whether inter-talker similarity affects generalization from exposure to test talkers, we analyzed the accuracy in the single talker condition during test for all 20 unique combinnations of exposure and test talkers. We did so for two approaches to measuring similarity, both of them at best thought of as first approximations: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their vowel productions. We describe these measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition.
+
+## Subjective similarity ratings
+
+We investigated whether perceived talker-to-talker similarity explains differences in cross-talker generalization. We obtained sentence-by-sentence similarity ratings for all exposure and test talker pairs from Exp 1 & 2 from 48 participants over Mechanical Turk. 
+
+
+MORE INFORMATION HERE
+
+### Methods
+
+EXPLAIN ALSO HOW TALKER SCORE WAS OBTAINED.
+
+
+### Summary of similarity scores
+
+The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The six talkers to the right of the dividing line are the self-similarity ratings for the six talkers used during exposure. To the left of the dividing line are similarity ratings for all 30 possible combinations of these six talkers as exposure and test talker (only 20 of which were actually used in Experiments 1a and 1b). 
+
+![image](../figures/similarity across talkers.png)
+
+We do not know what exactly these similarity scores reflect---i.e., which properties of talkers' speech affected participants' perception of the sentence-to-sentence similarity. One worry is that explicit similarity judgments of the type used here are a form of meta-cognitive judgment, and that this type of judgment draws on different features than those relevant to the implicit (subconscious) processes underlying cross-talker generalization during speech perception. Specifically, we were worried that participants would rely on salient supra-segmental speech features, such as rythm and pitch. These feature are {\em not} necessarily reliable indicators of how similar two talkers are in their realization of sound categories. 
+
+Indeed, there is some evidence that this is the case here. A multi-dimensional scaling analysis revealed two latent dimensions along which the six talkers differed. We extracted talker's mean pitch (F0) from the recordings used in the experiment, and found that the ordering of talkers' pitch closely correlates with the ordering of talkers on the first latent dimension:
+
+![image](../figures/multi-dimensional scaling.png)
+
+This result has to be interpreted with caution, of course, since we only have six different talkers here. It does, however, provide {\it a priori} reason to expect the subjective similarity ratings to {\em not} be a good predictor of successful cross-talker generalization. Even if listeners do use supra-segmental features to generalize experience from exposure to test, this generalization will only facilitate listeners' performance during test to the extent that the exposure and test talker are indeed similar in how they realize sound categories and words.
+
+### Predicting talker-to-talker generalization in the single talker condition
+
+```{r}
+load("../data/talker-similarity.RData")
+
+run_subjective_similarity_analysis = function(
+  d, 
+  experiment = c("1a", "1b"), 
+  condition = "Single talker",
+  filename
+) {
+  my.priors = c(
+    prior(student_t(3,0,2.5), class = b),
+    prior(cauchy(0,5), class = sd)
+  )
+  
+  m = brm(
+    IsCorrect ~ 
+      offset(individual_training_performance.offset) + Similarity.Ordered + 
+      (1 | Sentence) + (1 | WorkerID),  
+    data = d %>%
+      filter(
+        Experiment %in% experiment,
+        Condition2 == condition) %>%
+      mutate(
+        TalkerPair = paste(
+          gsub("^.*([0-9]{3})$", "\\1", TrainingTalkerID), 
+          gsub("^.*([0-9]{3})$", "\\1", TestTalkerID), 
+          sep = " ")
+      ) %>% 
+      left_join(d.sim) %>%
+      mutate(Similarity.Ordered = my_scale(Similarity.Ordered)) %>%
+      dplyr::select(IsCorrect, 
+                    WorkerID, Sentence, 
+                    Cond.diff, individual_training_performance.offset, Similarity.Ordered), 
+    family = bernoulli, cores = max.cores, chains = 4, 
+    warmup = nsamples.warmup, iter = nsamples.total, 
+    prior = my.priors, file = paste0("../models/", filename))
+  
+  print(hypothesis(m, "Similarity.Ordered > 0"))
+  
+  return(m)
+}
+
+# Single talkers
+m.exp1ab.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.exp1ab.test, 
+  filename = "exp1ab.subjective_similarity.ST")
+
+m.exp1a.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.exp1ab.test, 
+  experiment = "1a",
+  filename = "exp1a.subjective_similarity.ST")
+
+m.exp1b.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.exp1ab.test, 
+  experiment = "1b",
+  filename = "exp1b.subjective_similarity.ST")
+```
+
+
+To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we fit a Bayesian mixed-effect logistic regression to just the data from the single talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
+
+For Experiment 1a, there is positive support for the the hypothesis that the subjective similarity between the exposure and test talker predicts the accuracy during test:
+
+```{r}
+summary(m.exp1a.similarity.ST)
+```
+
+For Experiment 1b, however, the opposite relationship was observed:
+
+```{r}
+summary(m.exp1b.similarity.ST)
+```
+
+
+
+## Objective similarity in vowel statistics
+
+MORE INFORMATION HERE
+
+
+```{r}
+load("../data/talker-similarity.RData")
+
+# Prepare IO data frame
+d.IO.full %<>%
+  mutate(
+    learningType = plyr::mapvalues(
+      learningType,
+      c("Single-talker", "Talker-specific"),
+      c("Single talker", "Talker-specific")
+    )
+  )
+
+# Merge information with test data
+d = d.exp1ab.test %>%
+  filter(
+    Condition2 %in% c("Single talker", "Talker-specific")) %>%
+  mutate(
+    TalkerPair = paste(
+      gsub("^.*([0-9]{3})$", "\\1", TrainingTalkerID), 
+      gsub("^.*([0-9]{3})$", "\\1", TestTalkerID), 
+      sep = " "),
+    TestTalker = gsub("^.*([0-9]{3})$", "\\1", TalkerPair)
+  ) %>% 
+  group_by(Experiment, Condition2, WorkerID, Sentence, TalkerPair, TestTalker) %>%
+  summarise(
+    meanCorrect = mean(IsCorrect),
+    NumSuccess = sum(IsCorrect),
+    Num = length(IsCorrect),
+    individual_training_performance.offset = mean(individual_training_performance.offset)
+  ) %>%
+  left_join(
+    d.IO.full %>%
+      filter(
+        learningType %in% condition,
+        Condition == "Non-control",
+        cues == "Lobanov Normalized F1xF2"
+      ) %>%
+      mutate(
+        TalkerPair = gsub("^.*([0-9]{3}).*([0-9]{3})$", "\\1 \\2", talkerPair)
+      ) %>%
+      group_by(TalkerPair, Sentence, learningType) %>%
+      summarise_at(vars(lhood, posterior, posterior_choice, accuracy),
+                   .funs = mean))
+
+# Plot
+d %>%
+  group_by(TalkerPair) %>%
+  mutate(accuracy_order = mean(accuracy)) %>%
+  ungroup() %>%
+  mutate(TalkerPair = gsub(" ", "->", TalkerPair)) %>%
+  arrange(learningType, accuracy_order) %>%
+  mutate(TalkerPair = factor(TalkerPair, levels = unique(TalkerPair))) %>%
+  ggplot(aes(x = TalkerPair, y = accuracy)) +
+  stat_summary(fun.data = mean_cl_boot, geom = "pointrange") +
+  scale_x_discrete("Combination of exposure and test talker") +
+  scale_y_continuous("Predicted accuracy\non test talker's vowels", limits = c(0,1)) +
+  geom_vline(xintercept = 20.5, linetype = 2, color = "darkgray") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(filename = "../figures/similarity-objective.pdf",
+       width = 12, height = 3.5)
+
+last_plot() +
+  geom_vline(xintercept = 5.5, linetype = 2, color = "darkgray") +
+  scale_y_continuous("Predicted accuracy on test talker's vowels", limits = c(0,1)) +
+  facet_wrap(~ TestTalker, scales = "free_x") 
+ggsave(filename = "../figures/similarity-objective-by test talker.pdf",
+       width = 6, height = 7)
+
+run_objective_similarity_analysis = function(
+  d, 
+  experiment = c("1a", "1b"), 
+  condition = "Single talker",
+  filename
+) {
+  my.priors = c(
+    prior(student_t(3,0,2.5), class = b),
+    prior(cauchy(0,5), class = sd)
+  )
+  
+  m = brm(
+    NumSuccess | trials(Num) ~ 
+      offset(individual_training_performance.offset) + accuracy_logit + 
+      (1 | Sentence) + (1 | WorkerID),  
+    data = d %>%
+      filter(
+        Experiment %in% experiment,
+        Condition2 == condition) %>%
+      mutate(accuracy_logit = qlogis(accuracy)), 
+    family = binomial, cores = max.cores, chains = 4, 
+    warmup = nsamples.warmup, iter = nsamples.total, 
+    prior = my.priors, file = paste0("../models/", filename))
+  
+  print(hypothesis(m, "accuracy_logit > 0"))
+  
+  return(m)
+}
+
+# Single talkers
+m.exp1ab.objective_similarity.ST = run_objective_similarity_analysis(
+  d, 
+  filename = "exp1ab.objective_similarity.ST")
+
+m.exp1a.objective_similarity.ST = run_objective_similarity_analysis(
+  d, 
+  experiment = "1a",
+  filename = "exp1a.objective_similarity.ST")
+
+m.exp1b.objective_similarity.ST = run_objective_similarity_analysis(
+  d, 
+  experiment = "1b",
+  filename = "exp1b.objective_similarity.ST")
+```
+
 
 
 

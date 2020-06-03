@@ -474,12 +474,12 @@ prepare_talkerIDs = . %>%
   # that test trials come before training trials
   mutate(
     TrainingTalkerID = last(TrainingTalkerID),
+    TestTalkerID = first(CurrentTalkerID),
      # Set training talker ID to 0 if the condition is no single talker
     TrainingUnderTestTalkerID = case_when(
-      Condition2 == "Single talker" ~ TrainingTalkerID,
+      Condition2 == "Single talker" ~ paste(TrainingTalkerID, TestTalkerID, sep = "__"),
       T ~ "0"
     ),
-    TestTalkerID = first(CurrentTalkerID),
     FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
   ungroup() %>%
   mutate_at(c("TrainingTalkerID", "TrainingUnderTestTalkerID", "TestTalkerID", "FirstTrainingTalkerID"), factor) %>%
@@ -1295,7 +1295,7 @@ we fit an additional sliding difference-coded Bayesian mixed-effects logistic re
 Models were fit with 3000 warm-up and 2000 posterior samples for each of 4 chains, for a total of 8000 posterior samples. The priors were the same as for the main analysis *except that we set a more specific prior for the intercept*: a student $t$ prior with a scale of 2.5, 7 DFs, and a location parameter set to the posterior mean of the main analysis. This was done to aid convergence, since weaker priors resulted in divergent transitions. 
 
 
-```{r exp1-additional-random-effects}
+```{r exp1-TestTalker-random-effects}
 # Run the same models but with by-talker random effects. This is conservative (probably overly conservative)
 # compared to previous work). More regularizing priors were needed to converge --- in particular for the
 # intercept. The primary contributor to convergence seems to not be the mean of the intercept prior (the 
@@ -1322,52 +1322,6 @@ m.exp1a.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_t
                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wTestTalker")
-m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
-                                   (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
-                                 data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4, 
-                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
-                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
-                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposureTestTalker")
-
-
-# ******************************************************** NEW PART *********************************
-# ******************************************************** NEW PART *********************************
-# ******************************************************** NEW PART *********************************
-# ******************************************************** NEW PART *********************************
-# ******************************************************** NEW PART *********************************
-# ******************************************************** NEW PART *********************************
-my.priors.wExposureTalker.diff = c(
-  # Prior on intercept was necessary for convergence.
-  prior(student_t(10,2.12,2.5), class = "Intercept"),
-  # Following Gelman et al (2008) and later revisions on wiki.
-  prior(student_t(3,0,2.5), class = b),
-  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
-  prior(cauchy(0,2.5), class = sd), 
-  # Uniform prior of correlations
-  prior(lkj(1), class = cor)
-)
-# m.exp1a.test.diff.wExposure_embedded_under_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
-#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
-#                                    (1 + Cond.diff | TestTalkerID / TrainingUnderTestTalkerID),
-#                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4,
-#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
-#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),
-#                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_embedded_under_TestTalker")
-
-m.exp1a.test.diff.wExposure_crossed_with_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
-                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) +
-                                   (1 + Cond.diff | TestTalkerID) + 
-                                   (1 | TrainingUnderTestTalkerID),
-                                 data = d.exp1a.test %>%
-                                   mutate(TrainingUnderTestTalkerID =
-                                            ifelse(Condition2 == "Single talker",
-                                                   paste(TrainingUnderTestTalkerID, TestTalkerID, sep = "__"),
-                                                   "0")), 
-                                 family = bernoulli, cores = max.cores, chains = 4,
-                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
-                                 control = list(adapt_delta = 0.99999, max_treedepth = 15),
-                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_crossed_with_TestTalker")
 
 
 ###################################### Experiment 1b
@@ -1387,40 +1341,6 @@ m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_t
                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
                                  prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wTestTalker")
-m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
-                                   (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
-                                 data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
-                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
-                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
-                                 prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wExposureTestTalker")
-
-my.priors.wExposureTalker.diff = c(
-  # Prior on intercept was necessary for convergence.
-  prior(student_t(10,2.20,2.5), class = "Intercept"),
-  # Following Gelman et al (2008) and later revisions on wiki.
-  prior(student_t(3,0,2.5), class = b),
-  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
-  prior(cauchy(0,2.5), class = sd), 
-  # Uniform prior of correlations
-  prior(lkj(1), class = cor)
-)
-m.exp1b.test.diff.wExposure_crossed_with_TestTalker <- brm(
-  IsCorrect ~ 
-    Cond.diff + offset(individual_training_performance.offset) +
-    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
-    (1 + Cond.diff | TestTalkerID) + 
-    (1 | TrainingUnderTestTalkerID),
-  data = d.exp1b.test %>%
-    mutate(TrainingUnderTestTalkerID =
-             ifelse(Condition2 == "Single talker",
-                    paste(TrainingUnderTestTalkerID, TestTalkerID, sep = "__"),
-                    "0")), 
-  family = bernoulli, cores = max.cores, chains = 4,
-  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
-  control = list(adapt_delta = 0.99999, max_treedepth = 15),
-  prior = my.priors.wExposureTalker.diff, 
-  file = "../models/exp1b.Test.diff.wExposure_crossed_with_TestTalker")
 ```
 
 
@@ -1471,6 +1391,80 @@ table_3effects(m.exp1b.test.diff.wTestTalker,
 
 
 ## Do differences between exposure-test talker combinations affect the conclusions one would draw?
+```{r exp1-ExposureTestTalker-random-effects}
+###################################### Experiment 1a
+my.priors.wExposureTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(10,2.12,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,2.5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+
+# m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
+#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
+#                                    (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
+#                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4, 
+#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+#                                  prior = my.priors.wExposureTestTalker.diff, file = "../models/exp1a.Test.diff.wExposureTestTalker")
+
+# m.exp1a.test.diff.wExposure_embedded_under_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
+#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+#                                    (1 + Cond.diff | TestTalkerID / TrainingUnderTestTalkerID),
+#                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4,
+#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),
+#                                  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_embedded_under_TestTalker")
+
+m.exp1a.test.diff.wExposure_crossed_with_TestTalker <- brm(
+  IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+    (1 + Cond.diff | TestTalkerID) + 
+    (1 | TrainingUnderTestTalkerID),
+  data = d.exp1a.test, 
+  family = bernoulli, cores = max.cores, chains = 4,
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+  control = list(adapt_delta = 0.99999, max_treedepth = 15),
+  prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wExposure_crossed_with_TestTalker")
+
+###################################### Experiment 1b
+my.priors.wExposureTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(10,2.20,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,2.5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+
+# m.exp1b.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
+#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
+#                                    (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
+#                                  data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
+#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+#                                  prior = my.priors.wExposureTestTalker.diff, file = "../models/exp1b.Test.diff.wExposureTestTalker")
+
+m.exp1b.test.diff.wExposure_crossed_with_TestTalker <- brm(
+  IsCorrect ~ 
+    Cond.diff + offset(individual_training_performance.offset) +
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+    (1 + Cond.diff | TestTalkerID) + 
+    (1 | TrainingUnderTestTalkerID),
+  data = d.exp1b.test, 
+  family = bernoulli, cores = max.cores, chains = 4,
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+  control = list(adapt_delta = 0.99999, max_treedepth = 15),
+  prior = my.priors.wExposureTalker.diff, 
+  file = "../models/exp1b.Test.diff.wExposure_crossed_with_TestTalker")
+```
+
 To address our second question:
 
  + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 

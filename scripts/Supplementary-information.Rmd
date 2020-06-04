@@ -224,7 +224,7 @@ table_3effects = function(model,
 
 plot_3effects = function(model, title, add_plot = NULL, 
                          color = "black", fill = "lightgray", alpha = .5,
-                         by = c("", "TestTalker", "TestTalkerID:TrainingTalkerID")[1]
+                         by = c("", "TestTalker", "ExposureTestTalker")[1]
 ) {
   # Names of effects (ordered in the way they are meant to be displayed later)
   effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
@@ -254,12 +254,26 @@ plot_3effects = function(model, title, add_plot = NULL,
       if (by == "ExposureTestTalker") {
         left_join(
           .,
+          # model %>%
+          #   spread_draws(`r_TestTalkerID:TrainingTalkerID`[ExposureTestTalker,condition])) %>%
+          # mutate(
+          #   .value = .value + `r_TestTalkerID:TrainingTalkerID`,
+          #   `r_TestTalkerID:TrainingTalkerID` = NULL
+          # )
           model %>%
-            spread_draws(`r_TestTalkerID:TrainingTalkerID`[ExposureTestTalker,condition])) %>%
+            spread_draws(`r_TrainingUnderTestTalkerID`[ExposureTestTalker,Intercept])) %>%
           mutate(
-            .value = .value + `r_TestTalkerID:TrainingTalkerID`,
-            `r_TestTalkerID:TrainingTalkerID` = NULL
-          )
+            .value = .value + `r_TrainingUnderTestTalkerID`,
+            `r_TrainingUnderTestTalkerID` = NULL,
+            Intercept = NULL
+          ) # %>%
+          # Filter out cases that do not occur in the data (e.g., all the Exposure-Test-Talker
+          # combinations for anything but the ST conditions).
+          # filter(
+          #   any(
+          #     TestTalker == gsub(ExposureTest)
+          #     condition != ExposureTestTalker == "0",
+          #       ))
       } else . 
     } %>%
     pivot_wider(
@@ -610,6 +624,8 @@ d.exp1ab %>%
 
 # Performance during exposure phase in Experiments 1a and 1b
 
+Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the the five trial bins.
+
 ```{r}
 select_training = . %>%
   filter(PartOfExp == "training") %>%
@@ -663,7 +679,13 @@ d.exp1ab.training %>%
 ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
 ```
 
-This was also confirmed in a Bayesian mixed-effects logistic regression over the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial bin (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. The results are summarized and visualized below.
+Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also {\em faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact {\em same} 16 recordings five times each (the five trial bins); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial bins (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
+
+Second, the performance at the beginning of exposure was higher in Experiment 1b, compared to 1a, for both the multi-talker and control condition. The opposite trend held---though less clearly---for the two exposure conditions. It is possible that these differences reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition, but increased for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
+
+To further analyze these differences, we fit a Bayesian mixed-effects logistic regression to the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial bin (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. The by-talker random intercept captures inter-talker differences in intelligibility, as the stimuli in the first trial bin during exposure can come from different talkers, depending both on the condition and the specific list. 
+
+The results of the exposure analysis are summarized and visualized below.
 
 ```{r, training models summary, fig.width=5}
 my.priors = c(
@@ -725,8 +747,6 @@ xhypotheses(
 
 
 ## Potential consequences of individual differences in *a priori* performance
-
-It is possible that differences in performance during exposure reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition. The proportion of participants who used headsets increased most from Experiment 1a to 1b for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
 
 Whatever the reason for these difference, it is possible that they confound the analyses of the test data. **The analyses of performance during the test phase therefore control for individual differences in performance during exposure**. Specifically, the analyses of the test data use an offset term that is based on the individual difference in performance at the onset of the exposure phase. Next, we describe how we estimated these individual differences.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
 
@@ -986,6 +1006,7 @@ m.exp1ab.test.justIntercept <- brm(IsCorrect ~
                          prior = my.priors[-1,], file = "../models/exp1ab.Test.justIntercept")
 summary(m.exp1ab.test.justIntercept)
 ```
+
 In other words, individual differences in performance during training relative to other participants that see the same exposure materials are indeed highly predictive of individual differences in performance during test. This highlights the potential that even small imbalanced in these individual differences across the four conditions in Experiments 1a and 1b could make the test results across the two experiments appear less similar than they are (once individual differences are taken into account).
 
 If we translate the estimated coefficient back into the un-standardized individual differences at the onset of the exposure block (`individual_training_performance.linear`) this yields the following estimates for the relation of individual differences in performance at the onset of training and the performance during test:
@@ -1087,7 +1108,8 @@ plot_base =
   stat_summary(fun = "mean", geom = "point", 
                alpha = 1, size = 1.1, stroke=3, position = position_dodge(.9)) +
   stat_summary(fun.data = mean_cl_boot, geom = "errorbar", 
-               width = 0.2, linetype = 1, size = 1, position = position_dodge(.9)) +   xlab("Exposure condition") +
+               width = 0.2, linetype = 1, size = 1, position = position_dodge(.9)) +
+  scale_x_discrete("Exposure condition") +
   scale_colour_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
   scale_fill_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
   theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
@@ -1133,7 +1155,7 @@ contrasts(d.exp1a.test$Cond.diff)
 summary(m.exp1a.test.diff)
 ```
 
-### Additional hypothesis testes
+### Additional hypothesis tests
 ```{r, exp1a test block analysis - hypotheses for sliding difference coding}
 xhypotheses(list(hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
 ```
@@ -1390,7 +1412,7 @@ table_3effects(m.exp1b.test.diff.wTestTalker,
 ```
 
 
-## Do differences between exposure-test talker combinations affect the conclusions one would draw?
+## Do differences between exposure-test talker combinations affect the conclusions one would draw? I AM NOT SURE THIS ACTUALLY MAKES SENSE. WE CAN'T REALLY ESTIMATE SLOPES FOR EXPOSURE-TEST TALKER COMBINATIONS
 ```{r exp1-ExposureTestTalker-random-effects}
 ###################################### Experiment 1a
 my.priors.wExposureTalker.diff = c(
@@ -1469,31 +1491,33 @@ To address our second question:
 
  + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
 
-we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts and slopes for the exposure conditions by exposure talker, embedded under test talker. We use these models to estimate the effects of exposure by exposure-test talker combination.
+<!-- we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts and slopes for the exposure conditions by exposure talker, embedded under test talker. We use these models to estimate the effects of exposure by exposure-test talker combination. -->
+
+
 
 ### Experiment 1a
 ```{r, fig.height=20, fig.width=20}
-plot_3effects(m.exp1a.test.diff.wExposureTestTalker, 
+plot_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, 
               "Experiment 1a by exposure-test talker combination", 
               by = "ExposureTestTalker", fill = colors.model[3]) 
 ggsave(filename = "../figures/exp1a_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
 
-table_3effects(m.exp1a.test.diff.wExposureTestTalker, 
+table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, 
                scope = "coef", group = "TestTalkerID:TrainingTalkerID")
-table_3effects(m.exp1a.test.diff.wExposureTestTalker, 
+table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, 
                scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
 ```
 
 ### Experiment 1b
 ```{r, fig.height=20, fig.width=20}
-plot_3effects(m.exp1b.test.diff.wExposureTestTalker, 
+plot_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, 
               "Experiment 1b by exposure-test talker combination", 
               by = "ExposureTestTalker", fill = colors.model[3]) 
 ggsave(filename = "../figures/exp1b_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
 
-table_3effects(m.exp1b.test.diff.wExposureTestTalker, 
+table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, 
                scope = "coef", group = "TestTalkerID:TrainingTalkerID")
-table_3effects(m.exp1b.test.diff.wExposureTestTalker, 
+table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, 
                scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
 ```
 
@@ -1520,11 +1544,11 @@ table_3effects(m.exp1b.test.diff.wTestTalker, scope = "standard")
 Next we summarize the results for the Bayesian hypothesis tests for Questions 1-3 for Experiments 1a and 1b when random effects for exposure-test talker combinations are included.
 
 ```{r}
-table_3effects(m.exp1a.test.diff.wExposureTestTalker, scope = "standard")
-table_3effects(m.exp1b.test.diff.wExposureTestTalker, scope = "standard")
+table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, scope = "standard")
+table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, scope = "standard")
 ```
 
-### Measuring the increase in uncertainty 
+### Visualizing the increase in uncertainty 
 
 The following figures plot the posterior distribution of exposure effects for the three models, and quantify the resulting uncertainty as the standard deviation of that distribution (i.e., the standard error of the estimated effect).
 
@@ -1534,7 +1558,7 @@ With each additional source of variability (and thus uncertainty), we see that t
 # Experiment 1a
 models.diff = list("no by-talker" = m.exp1a.test.diff, 
                    "by test talker" = m.exp1a.test.diff.wTestTalker, 
-                   "by exposure &\ntest talker" = m.exp1a.test.diff.wExposureTestTalker)
+                   "by exposure &\ntest talker" = m.exp1a.test.diff.wExposure_crossed_with_TestTalker)
 
 p = plot_3effects(models.diff[[3]], title = "Experiment 1a", alpha = .5, fill = colors.model[3]) 
 p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 
@@ -1547,7 +1571,7 @@ ggsave(p, filename = "../figures/exp1a_Q123_effects_dependingOnRE.pdf", width = 
 # Experiment 1b
 models.diff = list("no by-talker" = m.exp1b.test.diff, 
                    "by test talker" = m.exp1b.test.diff.wTestTalker, 
-                   "by exposure &\ntest talker" = m.exp1b.test.diff.wExposureTestTalker)
+                   "by exposure &\ntest talker" = m.exp1b.test.diff.wExposure_crossed_with_TestTalker)
 
 p = plot_3effects(models.diff[[3]], title = "Experiment 1b", alpha = 1, fill = colors.model[3]) 
 p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 

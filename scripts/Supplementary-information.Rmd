@@ -101,7 +101,7 @@ colors.exposure = c("#B1B1B1", "#1F78B4", "#33A02C", "#E31A1C")
 colors.model = viridis::viridis_pal()(3)  # without by-talker effects, by test talker, by exposure-test talker combinations
 
 
-my_scale = function(x) (x - mean(x)) / (2 * sd(x))
+my_scale = function(x) (x - mean(x)) / (2 * sd(x, na.rm = T))
 
 standardize = function(dataset) {
   dataset %>%
@@ -2269,6 +2269,9 @@ bf(b1, b2.woST.vs.MT)
 
 
 # Similarity-based analysis
+```{r}
+load("../data/Talker-similarity.RData")
+```
 
 To assess whether inter-talker similarity affects generalization from exposure to test talkers, we analyzed the accuracy in the single talker condition during test for all 20 unique combinnations of exposure and test talkers. We did so for two approaches to measuring similarity, both of them at best thought of as first approximations: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their vowel productions. We describe these measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition.
 
@@ -2285,121 +2288,10 @@ EXPLAIN ALSO HOW TALKER SCORE WAS OBTAINED.
 
 
 ### Summary of similarity scores
-
-The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The six talkers to the right of the dividing line are the self-similarity ratings for the six talkers used during exposure. To the left of the dividing line are similarity ratings for all 30 possible combinations of these six talkers as exposure and test talker (only 20 of which were actually used in Experiments 1a and 1b). 
-
-![image](../figures/similarity across talkers.png)
-
-We do not know what exactly these similarity scores reflect---i.e., which properties of talkers' speech affected participants' perception of the sentence-to-sentence similarity. One worry is that explicit similarity judgments of the type used here are a form of meta-cognitive judgment, and that this type of judgment draws on different features than those relevant to the implicit (subconscious) processes underlying cross-talker generalization during speech perception. Specifically, we were worried that participants would rely on salient supra-segmental speech features, such as rythm and pitch. These feature are {\em not} necessarily reliable indicators of how similar two talkers are in their realization of sound categories. 
-
-Indeed, there is some evidence that this is the case here. A multi-dimensional scaling analysis revealed two latent dimensions along which the six talkers differed. We extracted talker's mean pitch (F0) from the recordings used in the experiment, and found that the ordering of talkers' pitch closely correlates with the ordering of talkers on the first latent dimension:
-
-![image](../figures/multi-dimensional scaling.png)
-
-This result has to be interpreted with caution, of course, since we only have six different talkers here. It does, however, provide {\it a priori} reason to expect the subjective similarity ratings to {\em not} be a good predictor of successful cross-talker generalization. Even if listeners do use supra-segmental features to generalize experience from exposure to test, this generalization will only facilitate listeners' performance during test to the extent that the exposure and test talker are indeed similar in how they realize sound categories and words.
-
-### Predicting talker-to-talker generalization in the single talker condition
-
 ```{r}
-load("../data/talker-similarity.RData")
-
-run_subjective_similarity_analysis = function(
-  d, 
-  experiment = c("1a", "1b"), 
-  condition = "Single talker",
-  filename
-) {
-  my.priors = c(
-    prior(student_t(3,0,2.5), class = b),
-    prior(cauchy(0,5), class = sd)
-  )
-  
-  m = brm(
-    IsCorrect ~ 
-      offset(individual_training_performance.offset) + Similarity.Ordered + 
-      (1 | Sentence) + (1 | WorkerID),  
-    data = d %>%
-      filter(
-        Experiment %in% experiment,
-        Condition2 == condition) %>%
-      mutate(
-        TalkerPair = paste(
-          gsub("^.*([0-9]{3})$", "\\1", TrainingTalkerID), 
-          gsub("^.*([0-9]{3})$", "\\1", TestTalkerID), 
-          sep = " ")
-      ) %>% 
-      left_join(d.sim) %>%
-      mutate(Similarity.Ordered = my_scale(Similarity.Ordered)) %>%
-      dplyr::select(IsCorrect, 
-                    WorkerID, Sentence, 
-                    Cond.diff, individual_training_performance.offset, Similarity.Ordered), 
-    family = bernoulli, cores = max.cores, chains = 4, 
-    warmup = nsamples.warmup, iter = nsamples.total, 
-    prior = my.priors, file = paste0("../models/", filename))
-  
-  print(hypothesis(m, "Similarity.Ordered > 0"))
-  
-  return(m)
-}
-
-# Single talkers
-m.exp1ab.subjective_similarity.ST = run_subjective_similarity_analysis(
-  d.exp1ab.test, 
-  filename = "exp1ab.subjective_similarity.ST")
-
-m.exp1a.subjective_similarity.ST = run_subjective_similarity_analysis(
-  d.exp1ab.test, 
-  experiment = "1a",
-  filename = "exp1a.subjective_similarity.ST")
-
-m.exp1b.subjective_similarity.ST = run_subjective_similarity_analysis(
-  d.exp1ab.test, 
-  experiment = "1b",
-  filename = "exp1b.subjective_similarity.ST")
-```
-
-
-To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we fit a Bayesian mixed-effect logistic regression to just the data from the single talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
-
-For Experiment 1a, there is positive support for the the hypothesis that the subjective similarity between the exposure and test talker predicts the accuracy during test:
-
-```{r}
-summary(m.exp1a.subjective_similarity.ST)
-```
-
-For Experiment 1b, however, the opposite relationship was observed:
-
-```{r}
-summary(m.exp1b.subjective_similarity.ST)
-```
-
-
-
-## Objective similarity in vowel statistics
-
-MORE INFORMATION HERE. INCL. DOWNSIDES / LIMTATIONS OF THIS APPROACH
-
-### Summary of similarity scores
-
-The following plots show the predicted accuracy of an ideal observer applied to the vowel's of the test talker, based on training on the vowels of the exposure talker.  
-
-```{r}
-load("../data/talker-similarity.RData")
-
-# Prepare IO data frame
-d.IO.full %<>%
-  mutate(
-    learningType = plyr::mapvalues(
-      learningType,
-      c("Single-talker", "Talker-specific"),
-      c("Single talker", "Talker-specific")
-    )
-  )
-
-# Merge information with test data
-d = d.exp1ab.test %>%
-  filter(
-    Condition2 %in% c("Single talker", "Talker-specific")) %>%
+# Prepare test data for join with similarity data
+d.for_sim = d.exp1ab.test %>%
+  filter(Condition2 %in% c("Single talker", "Talker-specific")) %>%
   mutate(
     TalkerPair = paste(
       gsub("^.*([0-9]{3})$", "\\1", TrainingTalkerID), 
@@ -2413,28 +2305,175 @@ d = d.exp1ab.test %>%
     NumSuccess = sum(IsCorrect),
     Num = length(IsCorrect),
     individual_training_performance.offset = mean(individual_training_performance.offset)
-  ) %>%
+  ) 
+
+# Join subjective similarity into test data
+d.sim.subj = 
+  d.for_sim %>%
   left_join(
-    d.IO.full %>%
+    d.similarity.subjective %>%
+      filter(RejectWorker == FALSE) %>%
+      mutate(
+        TalkerPair = gsub("^.*([0-9]{3}).*([0-9]{3})$", "\\1 \\2", TalkerPair)
+      ) %>%
+      group_by(TalkerPair, Sentence) %>%
+      summarise(Similarity = mean(Response))) %>%
+  ungroup()
+```
+
+The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The six talkers to the right of the dividing line are the self-similarity ratings for the six talkers used during exposure---i.e., the similarity between exposure and test talker that participants in the talker-specific condition would experience. To the left of the dividing line are similarity ratings for all 20 combinations of exposure and test talker experienced by participants in the single talker condition. The second plot splits up these ratings by test talker.
+
+```{r, warning=FALSE}
+d.sim.subj %>%
+  group_by(TalkerPair) %>%
+  mutate(Similarity_order = mean(Similarity)) %>%
+  ungroup() %>%
+  mutate(TalkerPair = gsub(" ", "->", TalkerPair)) %>%
+  arrange(Condition2, Similarity_order) %>%
+  mutate(TalkerPair = factor(TalkerPair, levels = unique(TalkerPair))) %>%
+  group_by(TalkerPair, TestTalker, Sentence) %>%
+  summarise(Similarity = mean(Similarity)) %>%
+  ggplot(aes(x = TalkerPair, y = Similarity)) +
+  stat_summary(fun.data = mean_cl_boot, geom = "pointrange") +
+  scale_x_discrete("Combination of exposure and test talker") +
+  scale_y_continuous("Subjective similarity ratings", limits = c(1,7)) +
+  geom_vline(xintercept = 20.5, linetype = 2, color = "darkgray") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(filename = "../figures/similarity-subjective.pdf",
+       width = 12, height = 3.5)
+
+last_plot() +
+  geom_vline(xintercept = 5.5, linetype = 2, color = "darkgray") +
+  facet_wrap(~ TestTalker, scales = "free_x") 
+ggsave(filename = "../figures/similarity-subjective-by test talker.pdf",
+       width = 6, height = 7)
+```
+
+We do not know what exactly these similarity scores reflect---i.e., which properties of talkers' speech affected participants' perception of the sentence-to-sentence similarity. One worry is that explicit similarity judgments of the type used here are a form of meta-cognitive judgment, and that this type of judgment draws on different features than those relevant to the implicit (subconscious) processes underlying cross-talker generalization during speech perception. Specifically, we were worried that participants would rely on salient supra-segmental speech features, such as rythm and pitch. These feature are {\em not} necessarily reliable indicators of how similar two talkers are in their realization of sound categories. 
+
+Indeed, there is some evidence that this is the case here. A multi-dimensional scaling analysis revealed two latent dimensions along which the six talkers differed. We extracted talker's mean pitch (F0) from the recordings used in the experiment, and found that the ordering of talkers' pitch closely correlates with the ordering of talkers on the first latent dimension:
+
+![image](../figures/multi-dimensional scaling.png)
+
+This result has to be interpreted with caution, of course, since we only have six different talkers here. It does, however, provide {\it a priori} reason to expect the subjective similarity ratings to {\em not} be a good predictor of successful cross-talker generalization. Even if listeners do use supra-segmental features to generalize experience from exposure to test, this generalization will only facilitate listeners' performance during test to the extent that the exposure and test talker are indeed similar in how they realize sound categories and words.
+
+### Predicting talker-to-talker generalization in the single talker condition
+
+```{r}
+run_subjective_similarity_analysis = function(
+  d, 
+  experiment = c("1a", "1b"), 
+  condition = "Single talker",
+  filename
+) {
+  my.priors = c(
+    prior(student_t(3,0,2.5), class = b),
+    prior(cauchy(0,5), class = sd)
+  )
+  
+  m = brm(
+    NumSuccess | trials(Num) ~ 
+      offset(individual_training_performance.offset) + Similarity + 
+      (1 | Sentence) + (1 | WorkerID),  
+    data = d %>%
       filter(
-        learningType %in% condition,
+        Experiment %in% experiment,
+        Condition2 == condition) %>%
+      # # Delete next three rows to NOT average by exposure-test talker
+      # # (instead keeping separate similarity values for each sentence)
+      # group_by(TalkerPair) %>%
+      # mutate(Similarity = mean(Similarity)) %>%
+      # ungroup() %>%
+      mutate(Similarity = my_scale(Similarity)), 
+    family = binomial, cores = max.cores, chains = 4, 
+    warmup = 2000, iter = 4000, 
+    prior = my.priors, file = paste0("../models/", filename))
+  
+  return(m)
+}
+
+# Single talkers
+m.exp1ab.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.sim.subj, 
+  filename = "exp1ab.subjective_similarity.ST")
+
+m.exp1a.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.sim.subj, 
+  experiment = "1a",
+  filename = "exp1a.subjective_similarity.ST")
+
+m.exp1b.subjective_similarity.ST = run_subjective_similarity_analysis(
+  d.sim.subj, 
+  experiment = "1b",
+  filename = "exp1b.subjective_similarity.ST")
+```
+
+
+To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we fit a Bayesian mixed-effect logistic regression to just the data from the single talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
+
+For Experiment 1a, there is positive support for the the hypothesis that the subjective similarity between the exposure and test talker predicts the accuracy during test:
+
+```{r}
+summary(m.exp1a.subjective_similarity.ST)
+print(hypothesis(m.exp1a.subjective_similarity.ST, "Similarity > 0"))
+
+p = plot(conditional_effects(m.exp1a.subjective_similarity.ST), plot = FALSE) 
+p[[1]] + ylim(c(.7, 1)) 
+```
+
+For Experiment 1b, however, the opposite relationship was observed:
+
+```{r}
+summary(m.exp1b.subjective_similarity.ST)
+print(hypothesis(m.exp1b.subjective_similarity.ST, "Similarity > 0"))
+
+p = plot(conditional_effects(m.exp1b.subjective_similarity.ST), plot = FALSE) 
+p[[1]] + ylim(c(.7, 1)) 
+```
+
+
+
+## Objective similarity in vowel statistics
+
+MORE INFORMATION HERE. INCL. DOWNSIDES / LIMTATIONS OF THIS APPROACH
+
+### Summary of similarity scores
+
+The following plots show the predicted accuracy of an ideal observer applied to the vowel's of the test talker, based on training on the vowels of the exposure talker.  
+
+```{r}
+# Merge IO-based ('objective') similarity information with test data
+d.sim.obj = 
+  d.for_sim %>%
+  left_join(
+    d.similarity.objective %>%
+      mutate(
+        modelType = plyr::mapvalues(
+          modelType,
+          c("ST", "TS"),
+          c("Single talker", "Talker-specific")
+        )
+      ) %>%
+      filter(
+        modelType %in% c("Single talker", "Talker-specific"),
         Condition == "Non-control",
         cues == "Lobanov Normalized F1xF2"
       ) %>%
       mutate(
-        TalkerPair = gsub("^.*([0-9]{3}).*([0-9]{3})$", "\\1 \\2", talkerPair)
+        TalkerPair = gsub("^.*([0-9]{3}).*([0-9]{3})$", "\\1 \\2", paste(Talker_train, Talker_test))
       ) %>%
-      group_by(TalkerPair, Sentence, learningType) %>%
+      group_by(TalkerPair, Sentence, modelType) %>%
       summarise_at(vars(lhood, posterior, posterior_choice, accuracy),
-                   .funs = mean))
+                   .funs = mean)) %>% 
+  ungroup()
 
 # Plot
-d %>%
+d.sim.obj %>%
   group_by(TalkerPair) %>%
   mutate(accuracy_order = mean(accuracy)) %>%
   ungroup() %>%
   mutate(TalkerPair = gsub(" ", "->", TalkerPair)) %>%
-  arrange(learningType, accuracy_order) %>%
+  arrange(modelType, accuracy_order) %>%
   mutate(TalkerPair = factor(TalkerPair, levels = unique(TalkerPair))) %>%
   ggplot(aes(x = TalkerPair, y = accuracy)) +
   stat_summary(fun.data = mean_cl_boot, geom = "pointrange") +
@@ -2475,9 +2514,9 @@ run_objective_similarity_analysis = function(
       filter(
         Experiment %in% experiment,
         Condition2 == condition) %>%
-      mutate(accuracy_logit = qlogis(accuracy)), 
+      mutate(accuracy_logit = my_scale(qlogis(accuracy))), 
     family = binomial, cores = max.cores, chains = 4, 
-    warmup = nsamples.warmup, iter = nsamples.total, 
+    warmup = 2000, iter = 4000, 
     prior = my.priors, file = paste0("../models/", filename))
   
   print(hypothesis(m, "accuracy_logit > 0"))
@@ -2487,16 +2526,16 @@ run_objective_similarity_analysis = function(
 
 # Single talkers
 m.exp1ab.objective_similarity.ST = run_objective_similarity_analysis(
-  d, 
+  d.sim.obj, 
   filename = "exp1ab.objective_similarity.ST")
 
 m.exp1a.objective_similarity.ST = run_objective_similarity_analysis(
-  d, 
+  d.sim.obj, 
   experiment = "1a",
   filename = "exp1a.objective_similarity.ST")
 
 m.exp1b.objective_similarity.ST = run_objective_similarity_analysis(
-  d, 
+  d.sim.obj, 
   experiment = "1b",
   filename = "exp1b.objective_similarity.ST")
 ```

@@ -182,9 +182,9 @@ xhypothesis = function(hypothesis, model = NULL, label = NULL, format = "markdow
     col.names = c("Hypothesis","Est.","SE","CI~L~","CI~U~","BF","p~posterior~","")
   }
   
-  if (length(label) != 1)
+  if (all(length(label) != 1, !is.null(label)))
     stop("ERROR: Number of row labels does not match number of hypotheses (=1).\n")
-  else 
+  else if (!is.null(label))
     hypothesis[, label.index] = label
   
   return(kable(k,

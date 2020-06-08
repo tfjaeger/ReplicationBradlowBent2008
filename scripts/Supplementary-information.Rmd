@@ -984,7 +984,7 @@ xhypotheses(
   labels = paste0("Individual training performance > 0 (", c("TS", "MT", "ST", "CNTL"), " condition)")
 )
 ```
-Going back to the combined test data from all four exposure conditions, the effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance (SD = .60):
+Te effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance---here shown for the combined data from all exposure conditions of both experiments (SD = .60):
 
 ```{r}
 summary(m.exp1ab.test.fromTraining)
@@ -1602,170 +1602,37 @@ ggsave(p, filename = "../figures/exp1b_Q123_effects_dependingOnRE.pdf", width = 
 ```
 
 
-## How does the inclusion of multiple test talkers in the experiment affect the uncertainty about exposure effects (even when the variability across test talkers is *not* modeled) REPEAT WHILE INCLUDING SET IN SAMPLING AND CHECK SORTING OF CONDITIONS IN PLOT!
 
-```{r separate models by talker}
-nsamples.warmup = 2000
-nsamples.total = 5000
-
-# Experiment 1a
-# ---------------------------------------------------
-# Run four separate models for the four test talkers
-m.exp1a.test.diff.TestTalker1 = update(m.exp1a.test.diff, 
-       newdata = d.exp1a.test %>%
-         filter(TestTalkerID == "CMN_M_032"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker1") 
-m.exp1a.test.diff.TestTalker2 = update(m.exp1a.test.diff, 
-       newdata = d.exp1a.test %>%
-         filter(TestTalkerID == "CMN_M_035"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker2")
-m.exp1a.test.diff.TestTalker3 = update(m.exp1a.test.diff, 
-       newdata = d.exp1a.test %>%
-         filter(TestTalkerID == "CMN_M_037"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker3")
-m.exp1a.test.diff.TestTalker4 = update(m.exp1a.test.diff, 
-       newdata = d.exp1a.test %>%
-         filter(TestTalkerID == "CMN_M_043"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.TestTalker4")
-
-# Create a balanced subset of all four talkers
-includeWorkerIDs.1a = d.exp1a.test %>%
-  # Get all unique combinations of test talker, training talker, condition, and subject
-  dplyr::select(TestTalkerID, TrainingTalkerID, Condition2, WorkerID) %>%
-  # To facilitate balanced random sampling, training talker identity is ignored for the
-  # control and multi-talker conditions
-  mutate(TrainingTalkerID = ifelse(Condition2 %in% c("Control", "Multi-talker"), "", TrainingTalkerID)) %>%
-  distinct() %>%
-  # Sample 25% of all subjects
-  group_by(TestTalkerID, TrainingTalkerID, Condition2) %>%
-  sample_frac(size = .25, replace = F) %>%
-  ungroup() %>%
-  dplyr::select(WorkerID) %>%
-  unlist()
-
-# Check balancing of randomly draw data
-# xtabs(
-#   ~ Condition2 + TestTalkerID,
-#   data = d.exp1a.test %>%
-#          filter(WorkerID %in% includeWorkerIDs.1a))
-
-m.exp1a.test.diff.mixedTestTalker = update(m.exp1a.test.diff, 
-       newdata = d.exp1a.test %>%
-         filter(WorkerID %in% includeWorkerIDs.1a), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1a.Test.diff.mixedTestTalker1-4")
-
-# Experiment 1b
-# ---------------------------------------------------
-# Run four separate models for the four test talkers
-m.exp1b.test.diff.TestTalker1 = update(m.exp1b.test.diff, 
-       newdata = d.exp1b.test %>%
-         filter(TestTalkerID == "CMN_M_032"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker1") 
-m.exp1b.test.diff.TestTalker2 = update(m.exp1b.test.diff, 
-       newdata = d.exp1b.test %>%
-         filter(TestTalkerID == "CMN_M_035"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker2")
-m.exp1b.test.diff.TestTalker3 = update(m.exp1b.test.diff, 
-       newdata = d.exp1b.test %>%
-         filter(TestTalkerID == "CMN_M_037"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker3")
-m.exp1b.test.diff.TestTalker4 = update(m.exp1b.test.diff, 
-       newdata = d.exp1b.test %>%
-         filter(TestTalkerID == "CMN_M_043"), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.TestTalker4")
-
-# Create a balanced subset of all four talkers
-includeWorkerIDs.1b = d.exp1b.test %>%
-  # Get all unique combinations of test talker, training talker, condition, and subject
-  dplyr::select(TestTalkerID, TrainingTalkerID, Condition2, WorkerID) %>%
-  # To facilitate balanced random sampling, training talker identity is ignored for the
-  # control and multi-talker conditions
-  mutate(TrainingTalkerID = ifelse(Condition2 %in% c("Control", "Multi-talker"), "", TrainingTalkerID)) %>%
-  distinct() %>%
-  # Sample 25% of all subjects
-  group_by(TestTalkerID, TrainingTalkerID, Condition2) %>%
-  sample_frac(size = .25, replace = F) %>%
-  ungroup() %>%
-  dplyr::select(WorkerID) %>%
-  unlist()
-
-# Check balancing of randomly draw data
-# xtabs(
-#   ~ Condition2 + TestTalkerID,
-#   data = d.exp1b.test %>%
-#          filter(WorkerID %in% includeWorkerIDs.1b))
-
-m.exp1b.test.diff.mixedTestTalker = update(m.exp1b.test.diff, 
-       newdata = d.exp1b.test %>%
-         filter(WorkerID %in% includeWorkerIDs.1b), 
-       chains = 4, warmup = nsamples.warmup, iter = nsamples.total, 
-       control = list(adapt_delta = 0.99), file = "../models/exp1b.Test.diff.mixedTestTalker1-4")
-```
-
-
-```{r, fig.width=10}
-# Experiment 1a
-models = list("CMN_M_032" = m.exp1a.test.diff.TestTalker1, 
-              "CMN_M_035" = m.exp1a.test.diff.TestTalker2, 
-              "CMN_M_037" = m.exp1a.test.diff.TestTalker3, 
-              "CMN_M_043" = m.exp1a.test.diff.TestTalker4, 
-              "4 talkers" = m.exp1a.test.diff.mixedTestTalker)
-
-p = plot_3effects(models[[1]], title = "Experiment 1a", alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[2]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[3]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[4]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[5]], add_plot = p, alpha = .5, fill = "black") 
-p = plot_3effects_var(models, add_plot = p, rel_widths = c(.75, .25))
-
-p
-ggsave(p, filename = "../figures/exp1a_Q123_effects_dependingOnIncludedTestTalkers.pdf", width = 12, height = 4.5)
-
-# Experiment 1b
-models = list("CMN_M_032" = m.exp1b.test.diff.TestTalker1, 
-              "CMN_M_035" = m.exp1b.test.diff.TestTalker2, 
-              "CMN_M_037" = m.exp1b.test.diff.TestTalker3, 
-              "CMN_M_043" = m.exp1b.test.diff.TestTalker4, 
-              "4 talkers" = m.exp1b.test.diff.mixedTestTalker)
-
-p = plot_3effects(models[[1]], title = "Experiment 1b", alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[2]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[3]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[4]], add_plot = p, alpha = .5, fill = "lightgray") 
-p = plot_3effects(models[[5]], add_plot = p, alpha = .5, fill = "black") 
-p = plot_3effects_var(models, add_plot = p, rel_widths = c(.75, .25))
-
-p
-ggsave(p, filename = "../figures/exp1b_Q123_effects_dependingOnIncludedTestTalkers.pdf", width = 12, height = 4.5)
-```
-
-
-
-
-## Full models with random effects by test talker
+## Full model summaries
 Finally, we provide the full model output for the models with random effects by test talker and exposure-test talker combination.
 
-### Experiment 1a
+### Random effect by test talker
 
-```{r, exp1a test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}
+#### Experiment 1a
+
+```{r, exp1a test block analysis - model output for sliding difference coding w/ random effects by test talker, warning=T, size = "footnotesize"}
 summary(m.exp1a.test.diff.wTestTalker)
 ```
 
-### Experiment 1b
+#### Experiment 1b
 
-```{r, exp1b test block analysis - model output for sliding difference coding w/ random effects by talker, warning=T, size = "footnotesize"}
+```{r, exp1b test block analysis - model output for sliding difference coding w/ random effects by test talker, warning=T, size = "footnotesize"}
 summary(m.exp1b.test.diff.wTestTalker)
 ```
 
+### Random effect by exposure and by test talker
+
+#### Experiment 1a
+
+```{r, exp1a test block analysis - model output for sliding difference coding w/ random effects by exposure and test talker, warning=T, size = "footnotesize"}
+summary(m.exp1a.test.diff.wExposure_crossed_with_TestTalker)
+```
+
+#### Experiment 1b
+
+```{r, exp1b test block analysis - model output for sliding difference coding w/ random effects by exposure and test talker, warning=T, size = "footnotesize"}
+summary(m.exp1b.test.diff.wExposure_crossed_with_TestTalker)
+```
 
 
 
@@ -2287,6 +2154,8 @@ bf(b1, b2.woST.vs.MT)
 ```
 
 
+
+
 # Similarity-based analysis
 ```{r}
 load("../data/Talker-similarity.RData")
@@ -2444,7 +2313,7 @@ summary(m.exp1a.subjective_similarity.ST)
 xhypothesis(hypothesis(m.exp1a.subjective_similarity.ST, "Similarity > 0"))
 
 p = plot(conditional_effects(m.exp1a.subjective_similarity.ST), plot = FALSE) 
-p[[1]] + ylim(c(.7, 1)) 
+p[[1]] + ylim(c(.7, 1)) + theme_bw()
 ```
 
 For Experiment 1b, however, the opposite relationship was observed:
@@ -2454,7 +2323,7 @@ summary(m.exp1b.subjective_similarity.ST)
 xhypothesis(hypothesis(m.exp1b.subjective_similarity.ST, "Similarity > 0"))
 
 p = plot(conditional_effects(m.exp1b.subjective_similarity.ST), plot = FALSE) 
-p[[1]] + ylim(c(.7, 1)) 
+p[[1]] + ylim(c(.7, 1)) + theme_bw()
 ```
 
 One potential reason for the weak / absent relation between the subjective similarity ratings and performance during test might be that the similarity ratings are strongly influenced by properties of the speech signal that are irrelevant for talker-to-talker generalization. The multi-dimensional scaling analysis mentioned above suggests as much, in that it shows that similarity ratings depend strongly on the talkers' mean F0. Such supra-segmental properties are expected to be somewhat predictive of *some* talker-specific phonetics (e.g., vowel realization), but are not expected to be predictive of other talker-specific phonetics. 
@@ -2521,7 +2390,9 @@ That said, the approach taken here is limited in many ways. MORE HERE. LACKING S
 
 ### Methods
 
-### Summary of similarity scores
+MORE INFO HERE
+
+### Summary of ideal observer-derived accuracies
 
 The following plots show the predicted accuracy of an ideal observer applied to the vowel's of the test talker, based on training on the vowels of the exposure talker. The six talkers to the right of the dividing line correspond to the talker-specific condition. To the left of the dividing line are predicted accuracies for all 20 combinations of exposure and test talker in the single talker condition. What is striking is that accuracy is *not* always highest in the talker-specific condition, despite the fact that in this case the exposure stimuli that the model is trained on come from the same talker as the test stimuli that the model is tested on. This provides strong evidence that the models are overfit to the training data, presumably because we simply do not have sufficiently many instances of the different vowels in the training data. In line with this hypothesis, the relative ordering of the different single talker models differs quite a bit depending on which set of sentences was used for training and which set was used for test (see second plot).
 
@@ -2556,13 +2427,17 @@ ggsave(filename = "../figures/similarity-objective-by test talker.pdf",
 ```
 
 ### Predicting talker-to-talker generalization in the single talker condition
+Following the same Bayesian mixed-effects regression approach that we applied to the analysis of subjective similarity scores, we predicted sentence-level accuracy during test in the single talker condition from the objective similarity scores. Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant. We calculated each participants' objective similarity score---i.e., the average ideal observer-predicted accuracy during test--- and transformed it into logits (to use the same units as the outcome we are aiming to predict: transcription accuracy). We then centered and scaled this predictor by twice its standard deviations (following Gelman, 2008). 
 
 ```{r objective similarity analysis}
 run_objective_similarity_analysis = function(
   d, 
   experiment = c("1a", "1b"), 
   condition = "Single talker",
-  filename
+  filename,
+  # should the data be aggregated at the level of unique combinations of
+  # talker pair and set?
+  aggregate = TRUE
 ) {
   my.priors = c(
     prior(student_t(3,0,2.5), class = b),
@@ -2577,20 +2452,17 @@ run_objective_similarity_analysis = function(
       filter(
         Experiment %in% experiment,
         Condition2 == condition) %>%
+      { if (aggregate)
+          group_by(., TalkerPair, Set) %>%
+          mutate(accuracy = mean(accuracy)) %>%
+          ungroup() else . } %>%
       mutate(accuracy_logit = my_scale(qlogis(accuracy))), 
     family = binomial, cores = max.cores, chains = 4, 
     warmup = 2000, iter = 4000, 
     prior = my.priors, file = paste0("../models/", filename))
   
-  print(hypothesis(m, "accuracy_logit > 0"))
-  
   return(m)
 }
-
-# Single talkers
-m.exp1ab.objective_similarity.ST = run_objective_similarity_analysis(
-  d.sim.obj, 
-  filename = "exp1ab.objective_similarity.ST")
 
 m.exp1a.objective_similarity.ST = run_objective_similarity_analysis(
   d.sim.obj, 
@@ -2602,16 +2474,17 @@ m.exp1b.objective_similarity.ST = run_objective_similarity_analysis(
   experiment = "1b",
   filename = "exp1b.objective_similarity.ST")
 ```
-For Experiment 1a, there is no support for the the hypothesis that the ideal observer predicted accuracy on the test talker's vowels predicts the actual accuracy of human listeners during test:
+
+For Experiment 1a, there is very little support for the the hypothesis that the ideal observer predicted accuracy on the test talker's vowels predicts the actual accuracy of human listeners during test:
 
 ```{r}
-summary(m.exp1a.objective_similarity.ST)
+xhypothesis(hypothesis(m.exp1a.objective_similarity.ST, "accuracy_logit > 0"))
 ```
 
 The same holds for Experiment 1b:
 
 ```{r}
-summary(m.exp1b.objective_similarity.ST)
+xhypothesis(hypothesis(m.exp1b.objective_similarity.ST, "accuracy_logit > 0"))
 ```
 
 

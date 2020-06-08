@@ -617,7 +617,7 @@ d.exp1ab %>%
 
 # Performance during exposure phase in Experiments 1a and 1b
 
-Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the the five trial bins.
+Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the the five trial blocks.
 
 ```{r}
 select_training = . %>%
@@ -656,7 +656,7 @@ d.exp1ab.training %>%
 	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
 	ggplot(aes(x = Quintile + 1, y = PropKeywordsCorrect, colour = Condition2, fill = Condition2, shape = Experiment)) +
   	stat_summary(fun.data = mean_cl_boot, geom = "pointrange", position = position_dodge(.5))+ 
-    xlab("Trial bin during exposure") +
+    xlab("Trial block during exposure") +
 		scale_y_continuous("Proportion of keywords correctly transcribed") +
     scale_colour_manual("Exposure Condition", 
                         values = setNames(colors.exposure, levels.exposure), 
@@ -672,11 +672,11 @@ d.exp1ab.training %>%
 ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
 ```
 
-Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also {\em faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact {\em same} 16 recordings five times each (the five trial bins); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial bins (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
+Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also {\em faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact {\em same} 16 recordings five times each (the five trial blocks); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial blocks (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
 
 Second, the performance at the beginning of exposure was higher in Experiment 1b, compared to 1a, for both the multi-talker and control condition. The opposite trend held---though less clearly---for the two exposure conditions. It is possible that these differences reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition, but increased for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
 
-To further analyze these differences, we fit a Bayesian mixed-effects logistic regression to the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial bin (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. The by-talker random intercept captures inter-talker differences in intelligibility, as the stimuli in the first trial bin during exposure can come from different talkers, depending both on the condition and the specific list. 
+To further analyze these differences, we fit a Bayesian mixed-effects logistic regression to the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial block (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. The by-talker random intercept captures inter-talker differences in intelligibility, as the stimuli in the first trial block during exposure can come from different talkers, depending both on the condition and the specific list. 
 
 The results of the exposure analysis are summarized and visualized below.
 
@@ -746,9 +746,9 @@ Whatever the reason for these difference, it is possible that they confound the 
 
 ## Estimating individual differences in performance at the onset of exposure
 
-Our goal was to estimate each individual's performance at the onset of the experiment, before effects of exposure could cause additional individual differences. This, we hope, can capture differences in quality of the audio equipment, differences in the degree to which participants paid attention, etc. We thus fit a Bayesian mixed-effects logistic regression, predicting transcription accuracy during exposure as a function of the exposure condition (*control*, *single talker*, *multi-talker*, and *talker-specific*), the trial bin (from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interaction. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial bin by participant. Critically, the model did not contain a predictor for experiment since we are interested in capturing individual differences in participants' performance across the entire sample of participants in Experiments 1a and 1b.
+Our goal was to estimate each individual's performance at the onset of the experiment, before effects of exposure could cause additional individual differences. This, we hope, can capture differences in quality of the audio equipment, differences in the degree to which participants paid attention, etc. We thus fit a Bayesian mixed-effects logistic regression, predicting transcription accuracy during exposure as a function of the exposure condition (*control*, *single talker*, *multi-talker*, and *talker-specific*), the trial block (from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interaction. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. Critically, the model did not contain a predictor for experiment since we are interested in capturing individual differences in participants' performance across the entire sample of participants in Experiments 1a and 1b.
 
-In this model, the random intercept by participant provide an estimate of each participants' performance *relative to other participants in the same exposure group* (since exposure condition was included in the model) *during the first trial bin* (since the first trial bin is coded as 0). These random by-participant intercepts are then used as an offset in the analysis of the test data.
+In this model, the random intercept by participant provide an estimate of each participants' performance *relative to other participants in the same exposure group* (since exposure condition was included in the model) *during the first trial block* (since the first trial block is coded as 0). These random by-participant intercepts are then used as an offset in the analysis of the test data.
 
 ```{r, fig.width=5}
 # Model without experiment as predictor
@@ -825,7 +825,7 @@ d.exp1b.test %<>% add_individual_performance()
 
 ### Pooling of data across experiments without controlling for effects of experiment
 
-We first compared the estimates of individual differences against estimates derived from the full model that additionally contained experiment as a predictor, as well as its interaction with trial bin and exposure condition. The goal of this comparison is to see how our decision to *not* include experiment in the estimation of individual differences affects the estimated individual differences. The black shapes show the mean across participants in that condition and experiment.
+We first compared the estimates of individual differences against estimates derived from the full model that additionally contained experiment as a predictor, as well as its interaction with trial block and exposure condition. The goal of this comparison is to see how our decision to *not* include experiment in the estimation of individual differences affects the estimated individual differences. The black shapes show the mean across participants in that condition and experiment.
 
 ```{r, fig.height=6, fig.width=7}
 d.exp1ab.test %>%
@@ -855,7 +855,7 @@ last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 
 ### Relaxing the assumption of linear effects during exposure 
 
-Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial bins) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
+Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial blocks) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
 
 ```{r, fig.width=5}
 plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
@@ -926,10 +926,9 @@ m.exp1ab.test.fromTraining <- brm(
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
   prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences")
-hypothesis(m.exp1ab.test.fromTraining, "individual_training_performance.linear_s > 0")
 ```
 
-Separated by exposure condition, we see some variability in the exact estimate of how much individual differences estimated during exposure affect performance during test, but overall the estimated coefficients show a remarkable degree of agreement across the four (entirely non-overlapping) test data for the four different exposure conditions:
+Separated by exposure condition, we see very little variability in the exact estimate of how much individual differences estimated during exposure affect performance during test. The estimated coefficients show a remarkable degree of agreement across the four (entirely non-overlapping) test data for the four different exposure conditions:
 
 ```{r}
 m.exp1ab.test.fromTraining.onlyTS <- brm(
@@ -942,7 +941,6 @@ m.exp1ab.test.fromTraining.onlyTS <- brm(
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
   prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyTS")
-hypothesis(m.exp1ab.test.fromTraining.onlyTS, "individual_training_performance.linear_s > 0")
 
 m.exp1ab.test.fromTraining.onlyMT <- brm(
   IsCorrect ~ 
@@ -954,7 +952,6 @@ m.exp1ab.test.fromTraining.onlyMT <- brm(
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
   prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyMT")
-hypothesis(m.exp1ab.test.fromTraining.onlyMT, "individual_training_performance.linear_s > 0")
 
 m.exp1ab.test.fromTraining.onlyST <- brm(
   IsCorrect ~ 
@@ -966,7 +963,6 @@ m.exp1ab.test.fromTraining.onlyST <- brm(
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
   prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyST")
-hypothesis(m.exp1ab.test.fromTraining.onlyST, "individual_training_performance.linear_s > 0")
 
 m.exp1ab.test.fromTraining.onlyCNTL <- brm(
   IsCorrect ~ 
@@ -978,7 +974,15 @@ m.exp1ab.test.fromTraining.onlyCNTL <- brm(
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
   prior = my.priors, file = "../models/exp1ab.Test.fromIndividualTrainingDifferences.onlyCNTL")
-hypothesis(m.exp1ab.test.fromTraining.onlyCNTL, "individual_training_performance.linear_s > 0")
+
+xhypotheses(
+  list(
+    hypothesis(m.exp1ab.test.fromTraining.onlyTS, "individual_training_performance.linear_s > 0"),
+    hypothesis(m.exp1ab.test.fromTraining.onlyMT, "individual_training_performance.linear_s > 0"),
+    hypothesis(m.exp1ab.test.fromTraining.onlyST, "individual_training_performance.linear_s > 0"),
+    hypothesis(m.exp1ab.test.fromTraining.onlyCNTL, "individual_training_performance.linear_s > 0")),
+  labels = paste0("Individual training performance > 0 (", c("TS", "MT", "ST", "CNTL"), " condition)")
+)
 ```
 Going back to the combined test data from all four exposure conditions, the effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance (SD = .60):
 
@@ -1002,17 +1006,39 @@ summary(m.exp1ab.test.justIntercept)
 
 In other words, individual differences in performance during training relative to other participants that see the same exposure materials are indeed highly predictive of individual differences in performance during test. This highlights the potential that even small imbalanced in these individual differences across the four conditions in Experiments 1a and 1b could make the test results across the two experiments appear less similar than they are (once individual differences are taken into account).
 
-If we translate the estimated coefficient back into the un-standardized individual differences at the onset of the exposure block (`individual_training_performance.linear`) this yields the following estimates for the relation of individual differences in performance at the onset of training and the performance during test:
+If we translate the estimated coefficient back into the un-standardized individual differences at the onset of the exposure block (`individual_training_performance.linear`) this yields the following estimates for the relation of individual differences in performance at the onset of training and the performance during test for the four different exposure conditions:
 
 ```{r}
 d.exp1ab.test %>%
+  filter(Condition2 == "Control") %>%
   dplyr::select(individual_training_performance.linear) %>%
   summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
   as.numeric() %>%
-  (function(x) summary(m.exp1ab.test.fromTraining)$fixed[2,c(1,3:4)] / x)
+  (function(x) summary(m.exp1ab.test.fromTraining.onlyCNTL)$fixed[2,c(1,3:4)] / x)
+
+d.exp1ab.test %>%
+  filter(Condition2 == "Single talker") %>%
+  dplyr::select(individual_training_performance.linear) %>%
+  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
+  as.numeric() %>%
+  (function(x) summary(m.exp1ab.test.fromTraining.onlyST)$fixed[2,c(1,3:4)] / x)
+
+d.exp1ab.test %>%
+  filter(Condition2 == "Multi-talker") %>%
+  dplyr::select(individual_training_performance.linear) %>%
+  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
+  as.numeric() %>%
+  (function(x) summary(m.exp1ab.test.fromTraining.onlyMT)$fixed[2,c(1,3:4)] / x)
+
+d.exp1ab.test %>%
+  filter(Condition2 == "Talker-specific") %>%
+  dplyr::select(individual_training_performance.linear) %>%
+  summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
+  as.numeric() %>%
+  (function(x) summary(m.exp1ab.test.fromTraining.onlyTS)$fixed[2,c(1,3:4)] / x)
 ```
 
-In the analysis of the test data, we thus include the individual differences in performance at the onset of exposure as an offset term. This sets the coefficient of this effect to 1, higher than the effect observed here. We did so based on the *a priori* consideration that the task during test is the same as during exposure so that any individual differences in the log-odds of accurate transcriptions during exposure (compared to other participants who heard the exact same stimuli) should translate to the exact same difference in log-odds of accurate transcriptions during test.
+In the analysis of the test data, we thus include the individual differences in performance at the onset of exposure. We include this variable, not as a predictor, but as an offset term. This sets the coefficient of this effect to 1, higher than the effect observed here. We did so based on the *a priori* consideration that the task during test is the same as during exposure so that any individual differences in the log-odds of accurate transcriptions during exposure (compared to other participants who heard the exact same stimuli) should translate to the exact same difference in log-odds of accurate transcriptions during test.
 
 
 
@@ -2488,6 +2514,10 @@ d.sim.obj =
 ```
 
 MORE INFORMATION HERE. INCL. DOWNSIDES / LIMTATIONS OF THIS APPROACH
+
+Our sole motivation in chosing *vowels*, rather than all (or other) types of segments, is feasibility. The center of vowels (on which we measured F1 and F2) are comparatively easy to identify and segment. The cues relevant to vowel identification in American English (primarily F1 and F2) are comparatively well understood (Hillenbrand et al., 1995 and follow-up studies), and easily be extracted from the segmented speech. 
+
+That said, the approach taken here is limited in many ways. MORE HERE. LACKING SOUNDS, NO WORD AND CONTEXT EFFECTS, NO SUPRA-SEGMENTAL ... 
 
 ### Methods
 

@@ -1604,7 +1604,7 @@ Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the res
 table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
                scope = "coef", group = "TestTalkerID")
 table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
-               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
+               scope = "ranef", group = "TestTalkerID")
 ```
 
 ### Experiment 1b (ADD RESULTS DESCRIPTION)
@@ -1619,9 +1619,9 @@ plot_predicted_outcome(
 
 ```{r, fig.height=20, fig.width=20}
 table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
-               scope = "coef", group = "TestTalkerID:TrainingTalkerID")
+               scope = "coef", group = "TestTalkerID")
 table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
-               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
+               scope = "ranef", group = "TestTalkerID")
 ```
 
 

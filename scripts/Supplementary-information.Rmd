@@ -396,6 +396,62 @@ plot_3effects_var = function(
   return(p)
 }
 
+
+plot_predicted_outcome = function(
+  data,
+  model,
+  n.draws = 1000,
+  experiment = c("1a", "1b"),
+  groups = c("TestTalkerID", "TrainingUnderTestTalkerID"),
+  offset.term = "individual_training_performance.offset"
+) {
+  d = data %>%
+    group_by(WorkerID, TestTalkerID, TrainingTalkerID, TrainingUnderTestTalkerID, Cond.diff, !! sym(offset.term), Sentence) %>%
+    summarize(Correct = sum(IsCorrect) / length(IsCorrect)) %>%
+    ungroup() %>%
+    arrange(TestTalkerID, TrainingTalkerID, WorkerID, Sentence)
+  
+  m = d %>%
+    add_fitted_draws(model, n = n.draws) %>%
+    # Add offset term back in, so that we're showing fit while removing effects of offset
+    mutate(.value = plogis(qlogis(.value) - !! sym(offset.term))) %>%
+    group_by(!!! syms(groups), Cond.diff, .draw) %>%
+    summarise(.value = mean(.value)) %>%
+    mean_hdci()
+    
+  myGplot.defaults("paper")
+  p = m %>%
+    ggplot(aes(x = Cond.diff, color = Cond.diff, fill = Cond.diff, y = .value)) +
+    # actual subject data
+    geom_dotplot(
+      binaxis = "y",stackdir = "center", width = .1, binwidth = .01, 
+      data = d %>% 
+        group_by(WorkerID, Cond.diff, !!! syms(groups)) %>%
+        summarise(.value = mean(Correct)),
+      alpha = .1
+    ) +
+    # prediction and 95% CI
+    { if ("TrainingUnderTestTalkerID" %in% groups) 
+        geom_pointrange(aes(ymax = .upper, ymin = .lower, group = TrainingUnderTestTalkerID),
+                    position = position_dodge(.35)) else 
+        geom_pointrange(aes(ymax = .upper, ymin = .lower)) } +
+    xlab("Exposure condition") +
+    scale_y_continuous("Proportion of keywords correctly transcribed") +
+    scale_colour_manual("Exposure Condition", 
+                        values = setNames(colors.exposure, levels.exposure), 
+                        guide = F) +
+    scale_fill_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure), 
+                      guide = F) +
+    coord_cartesian(ylim = c(0.75,1.0)) +
+    { if (length(groups) > 0) facet_grid(cols = vars(!!! syms(groups[1]))) }  +
+    theme(legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+  ggsave(p, filename = paste0("../figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
+         height = 7, width = 7)
+  
+  return(p)
+}
+
 # note that units here are "npc", the only unit (besides physical units) that makes sense
 # when annotating the plot panel in ggplot2 (since we have no access to 
 # native units)
@@ -1385,14 +1441,25 @@ m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_t
 ```
 
 
-
 ### Summary of findings 
 It is clear that the specific effects differ between test talkers. For the present data, these differences are comparatively small: we find the same ordering of relative effect sizes across all test talkers, and the posterior probability for a positive answer to Questions 1-3 is always larger than 50%. The similarity of the effect sizes is perhaps not surprising, since we (a) all of the six test talkers we considered in our pilot study were chosen to be of medium proficiency, <!-- Xin: CHECK --> and (b) of those six, we chose the four test talkers that were not close to ceiling after talker-specific adaptation. In short, our test talkers are representive only of a comparatively homogenous subset of the overall population of Mandarin-accented talkers.
 
 However, even for test talkers like these, who are *a priori* expected to be relatively similar to each other, it is also clear that we would have come to at least gradiently different conclusions if we had chosen only one of our four test talkers. <!-- TO DO: continue here with brief summary of results -->
 
 ### Experiment 1a
-We first quantify how the overall result of exposure differs depending on the test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
+We first quantify how the overall result of exposure differs depending on the test talker. This can be visualized by plotting the predicted transcription accuracy during test for each of the four exposure conditions depending on the test talker. In these predictions we do *not* include the offset term that corrects for individual differences, so that the plot shows the predicted differences between conditions *if all participants had the same offset (of 0).* The dotplot shows the empirical distribution of all participants. The pointrange shows the mean and 95% highest posterior density interval of the posterior distribution of the predicted transcription accuracy.
+
+```{r, fig.height=3.5, fig.width=15}
+plot_predicted_outcome(
+  data = d.exp1a.test,
+  model = m.exp1a.test.diff.wTestTalker,
+  groups = "TestTalkerID",
+  n.draws = 2000,
+  experiment = "1a",
+  offset.term = "individual_training_performance.linear")
+```
+
+We can also conduct the Bayesian hypothesis tests for Questions 1-3 separately for each test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
 
 ```{r}
 plot_3effects(m.exp1a.test.diff.wTestTalker, "Experiment 1a by test talker", 
@@ -1414,6 +1481,16 @@ table_3effects(m.exp1a.test.diff.wTestTalker,
 ### Experiment 1b
 We first quantify how the overall result of exposure differs depending on the test talker. As in Experiment 1a, exposure always had *positive* effects on comprehension accuracy. The relative effect sizes order the same way as in Experiment 1a for two of the test talkers (032 and 035), but not the other two test talkers. The most striking difference is found for test talker 037, which exhibited the second strongest support for generalization after single talker exposure in Experiment 1a, but only exhibited positive support in Experiment 1b.
 
+```{r, fig.height=3.5, fig.width=15}
+plot_predicted_outcome(
+  data = d.exp1b.test,
+  model = m.exp1b.test.diff.wTestTalker,
+  groups = "TestTalkerID",
+  n.draws = 2000,
+  experiment = "1b",
+  offset.term = "individual_training_performance.linear")
+```
+
 ```{r}
 plot_3effects(m.exp1b.test.diff.wTestTalker, "Experiment 1b by test talker", 
               by = "TestTalker", fill = colors.model[2], alpha = 1)
@@ -1423,7 +1500,7 @@ table_3effects(m.exp1b.test.diff.wTestTalker,
                scope = "coef", group = "TestTalkerID")
 ```
 
-Next, we further quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. As was the case for Experiment 1a, there never was anywhere close to strong evidence that effects for a given test talker differed from the overall effect. For test talker 043, for which all effects were numerically smaller than the average in Experiment 1a, three out of four effects were numerically smaller than the average in Experiment 1b.
+Next, we quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. As was the case for Experiment 1a, there never was anywhere close to strong evidence that effects for a given test talker differed from the overall effect. For test talker 043, for which all effects were numerically smaller than the average in Experiment 1a, three out of four effects were numerically smaller than the average in Experiment 1b.
 
 ```{r}
 table_3effects(m.exp1b.test.diff.wTestTalker, 
@@ -1431,7 +1508,7 @@ table_3effects(m.exp1b.test.diff.wTestTalker,
 ```
 
 
-## Do differences between exposure-test talker combinations affect the conclusions one would draw? I AM NOT SURE THIS ACTUALLY MAKES SENSE. WE CAN'T REALLY ESTIMATE SLOPES FOR EXPOSURE-TEST TALKER COMBINATIONS
+## Do differences between exposure-test talker combinations affect the conclusions one would draw? 
 ```{r exp1-ExposureTestTalker-random-effects}
 ###################################### Experiment 1a
 my.priors.wExposureTalker.diff = c(
@@ -1444,14 +1521,6 @@ my.priors.wExposureTalker.diff = c(
   # Uniform prior of correlations
   prior(lkj(1), class = cor)
 )
-
-# m.exp1a.test.diff.wExposureTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-#                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) + 
-#                                    (1 + Cond.diff | TestTalkerID / TrainingTalkerID),  
-#                                  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains = 4, 
-#                                  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
-#                                  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
-#                                  prior = my.priors.wExposureTestTalker.diff, file = "../models/exp1a.Test.diff.wExposureTestTalker")
 
 # m.exp1a.test.diff.wExposure_embedded_under_TestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) +
 #                                    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
@@ -1510,35 +1579,50 @@ To address our second question:
 
  + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
 
-<!-- we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts and slopes for the exposure conditions by exposure talker, embedded under test talker. We use these models to estimate the effects of exposure by exposure-test talker combination. -->
+we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts by the combination of exposure and test talker (coded as "0" for all but the single talker condition). This was done in addition to the random intercepts and slopes by test talker added in the previous section. This added one additional parameter to the analysis (the standard deviation of the random intercept by combination of exposure and test talker) to model the 21 unique random intercepts (20 unique combinations of exposure and test talker in the single talker condition + "0"). By adding a random intercept by combination of exposure and test talker, rather than by exposure talker, we can capture that the same exposure talker might have a different effect on transcription accuracy during test depending on the test talker. This avoids the assumption that the effects of exposure and test talkers are independent of each other.^[Note that it was impossible to include random slopes for the exposure condition by combination of exposure and test talker since exposure condition varied *between* combinations of exposure and test talker.]
 
+### Experiment 1a (ADD RESULTS DESCRIPTION)
+We first plot the predicted transcription accuracy during test for each of the four exposure conditions, depending on the exposure and test talker. The five different exposure talkers for the single talker condition of each test talker are shown as separate pointranges. Within each test talker, the exposure talkers are alphanumerically sorted in ascending order from left to right. For example, for test talker 035, the five point ranges correspond to (from left to right): 016, 021, 032, 037, and 043.
 
+```{r, fig.height=3.5, fig.width=15}
+plot_predicted_outcome(
+  data = d.exp1a.test,
+  model = m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
+  groups = c("TestTalkerID", "TrainingUnderTestTalkerID"),
+  n.draws = 2000,
+  experiment = "1a")
+```
 
-<!-- ### Experiment 1a -->
-<!-- ```{r, fig.height=20, fig.width=20} -->
-<!-- plot_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--               "Experiment 1a by exposure-test talker combination",  -->
-<!--               by = "ExposureTestTalker", fill = colors.model[3])  -->
-<!-- ggsave(filename = "../figures/exp1a_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20) -->
+Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the results for talker-specific adaptation and Question 1 (comparing the multi-talker condition against the control) do not change. The results for Questions 2 and 3, however, do depend on the mean of the single talker condition, and thus change in the updated model.
 
-<!-- table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--                scope = "coef", group = "TestTalkerID:TrainingTalkerID") -->
-<!-- table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--                scope = "ranef", group = "TestTalkerID:TrainingTalkerID") -->
-<!-- ``` -->
+```{r, fig.height=20, fig.width=20}
+# plot_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
+#               "Experiment 1a by exposure-test talker combination",
+#               by = "ExposureTestTalker", fill = colors.model[3])
+# ggsave(filename = "../figures/exp1a_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20)
 
-<!-- ### Experiment 1b -->
-<!-- ```{r, fig.height=20, fig.width=20} -->
-<!-- plot_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--               "Experiment 1b by exposure-test talker combination",  -->
-<!--               by = "ExposureTestTalker", fill = colors.model[3])  -->
-<!-- ggsave(filename = "../figures/exp1b_Q123_effects_byExposureTestTalker.pdf", width = 20, height = 20) -->
+table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "coef", group = "TestTalkerID")
+table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
+```
 
-<!-- table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--                scope = "coef", group = "TestTalkerID:TrainingTalkerID") -->
-<!-- table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,  -->
-<!--                scope = "ranef", group = "TestTalkerID:TrainingTalkerID") -->
-<!-- ``` -->
+### Experiment 1b (ADD RESULTS DESCRIPTION)
+```{r, fig.height=3.5, fig.width=15}
+plot_predicted_outcome(
+  data = d.exp1b.test,
+  model = m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
+  groups = c("TestTalkerID", "TrainingUnderTestTalkerID"),
+  n.draws = 2000,
+  experiment = "1b")
+```
+
+```{r, fig.height=20, fig.width=20}
+table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "coef", group = "TestTalkerID:TrainingTalkerID")
+table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "ranef", group = "TestTalkerID:TrainingTalkerID")
+```
 
 
 
@@ -2535,7 +2619,7 @@ d.pilot.training <- left_join(d.pilot.training, d.pilot.predframe_TRAIN)
 d.pilot.test <- left_join(d.pilot.test, d.pilot.predframe_TRAIN)
 ```
 
-```{r, pilot test block analysis - main level - also plot this}
+```{r, pilot test block analysis - main level}
 contrasts(d.pilot.test$Condition2) = contr.sum(2) * -1
 colnames(contrasts(d.pilot.test$Condition2)) = ("TS.vs.CNTL")
 
@@ -2549,11 +2633,6 @@ m.pilot.test <- brm(
 #     (1 + Condition.sum| Sentence) + (1 | WorkerID),  
 #     data = d.pilot.test, family = bernoulli, cores = max.cores)
 
-# Not controlling for a priori performance does not change the main result
-# m.pilot.test.1 <- brm(IsCorrect ~ Condition.sum + 
-#     (1 + Condition.sum| Sentence) + (1 | WorkerID),  
-#     data = d.pilot.test, family = bernoulli, cores = max.cores)
-
 myGplot.defaults(type = "paper")
 p.test.proportion %+% 
   (d.pilot %>%
@@ -2563,6 +2642,32 @@ p.test.proportion %+%
   group_by(WorkerID, Condition2) %>%
 	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)))
 ggsave(filename = "../figures/p.pilot.ts.cntl.pdf", device = cairo_pdf, width = 3, height = 4, dpi=300)
+
+p = p.test.proportion %+% 
+  (d = d.pilot %>%
+  group_by(WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  filter(PartOfExp == "test") %>% 
+  group_by(WorkerID, Condition2, CurrentTalkerID) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)))
+
+p +
+  geom_text(
+    data = d %>%
+      group_by(Condition2, CurrentTalkerID) %>%
+      dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect)) %>%
+      group_by(CurrentTalkerID) %>%
+      dplyr::summarise(
+        gain = round((PropKeywordsCorrect[2] - PropKeywordsCorrect[1]) * 100, 1),
+        text = paste0(ifelse(gain > 0, "+", ""), gain, "%")),
+    x = 1.5,
+    y = .3,
+    aes(label = text),
+    inherit.aes = F
+  ) +
+  facet_wrap(~ CurrentTalkerID, nrow = 1) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(filename = "../figures/p.pilot.ts.cntl_byTalker.pdf", device = cairo_pdf, width = 8, height = 4.5, dpi=300)
 ```
 
 ```{r, pilot test block analysis - model output, size = "footnotesize"}

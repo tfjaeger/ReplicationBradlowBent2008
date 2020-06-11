@@ -406,7 +406,7 @@ plot_predicted_outcome = function(
   offset.term = "individual_training_performance.offset"
 ) {
   d = data %>%
-    group_by(WorkerID, TestTalkerID, TrainingTalkerID, TrainingUnderTestTalkerID, Cond.diff, !! sym(offset.term), Sentence) %>%
+    group_by(WorkerID, TestTalkerID, TrainingTalkerID, TrainingUnderTestTalkerID, Condition2, Cond.diff, !! sym(offset.term), Sentence) %>%
     summarize(Correct = sum(IsCorrect) / length(IsCorrect)) %>%
     ungroup() %>%
     arrange(TestTalkerID, TrainingTalkerID, WorkerID, Sentence)
@@ -415,18 +415,18 @@ plot_predicted_outcome = function(
     add_fitted_draws(model, n = n.draws) %>%
     # Add offset term back in, so that we're showing fit while removing effects of offset
     mutate(.value = plogis(qlogis(.value) - !! sym(offset.term))) %>%
-    group_by(!!! syms(groups), Cond.diff, .draw) %>%
+    group_by(!!! syms(groups), Condition2, .draw) %>%
     summarise(.value = mean(.value)) %>%
     mean_hdci()
     
   myGplot.defaults("paper")
   p = m %>%
-    ggplot(aes(x = Cond.diff, color = Cond.diff, fill = Cond.diff, y = .value)) +
+    ggplot(aes(x = Condition2, color = Condition2, fill = Condition2, y = .value)) +
     # actual subject data
     geom_dotplot(
       binaxis = "y",stackdir = "center", width = .1, binwidth = .01, 
       data = d %>% 
-        group_by(WorkerID, Cond.diff, !!! syms(groups)) %>%
+        group_by(WorkerID, Condition2, !!! syms(groups)) %>%
         summarise(.value = mean(Correct)),
       alpha = .1
     ) +
@@ -2247,11 +2247,11 @@ load("../data/Talker-similarity.RData")
 
 One hypothesis is that listeners benefit from single talker exposure when the exposure and test talker are *similar* to each other. Experiment 1a and 1b both provide data on 20 unique combinations of exposure and test talkers in the single talker condition. It is thus theoretically possible to test whether similarity between the exposure and test talker predicts participants' transcription accuracy during test.
 
-An adequate assessement of this possibility is beyond the scope of this paper. We did, however, explore two (most likely, overly simple) approaches to measuring similarity: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their segmental phonetics. In both cases, our approach is best understood as a very coarse-grained approximation of the relevant quantity, based on what was feasible within the scope of this project. For example, our approximation of the objective similarity of talkers' phonetics is based on only their vowel productions (in addition to other limitations). 
+An adequate assessement of this possibility is beyond the scope of this paper. We did, however, explore two (overly simplistic) approaches to measuring similarity: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their segmental phonetics. In both cases, our approach is best understood as a very coarse-grained approximation of the relevant quantity, based on what was feasible within the scope of this project. For example, our approximation of the objective similarity of talkers' phonetics is based on only their vowel productions (in addition to other limitations). 
 
-Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily relie on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not necessarily predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitate accurate perception on another talker.
+Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily relu on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not *necessarily* predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitates accurate perception of another talker.
 
-We nevertheless report our approach and findings here, primarily for two reasons. First, good reporting standard dictate that we report on all tests we have conducted. Second, we hope that the approaches explored here---flawed as they are---can be informative for other reseachers interested in similar questions.
+We nevertheless report our approach and findings here, primarily for two reasons. First, good reporting standard dictate that we report all tests we conducted. Second, we hope that the approaches explored here---flawed as they are---can be informative for other reseachers interested in similar questions.
 
 ## Subjective similarity ratings
 

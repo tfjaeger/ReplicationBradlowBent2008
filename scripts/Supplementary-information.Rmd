@@ -60,10 +60,6 @@ knitr::knit_hooks$set(warning = color_block('orange'))
 
 
 # TO DO
- + RECODE EXPOSURE-TEST TALKER COMBINATION
-   ++ UPDATE FUNCTIONS TO DEAL WITH NEW CODING.
- + INCLUDE objective SIMILARITY ANALYSIS?
- + CHECK WHETHER SET COULD MAYBE ACCOUNT FOR BY-TEST TALKER DIFFERENCES.
  + FILL IN DETAILS ABOUT HOW SIMILARITY MEASURES WERE OBTAINED.
 
 ```{r functions, echo=FALSE}
@@ -222,9 +218,13 @@ table_3effects = function(model,
 }
 
 
-plot_3effects = function(model, title, add_plot = NULL, 
-                         color = "black", fill = "lightgray", alpha = .5,
-                         by = c("", "TestTalker", "ExposureTestTalker")[1]
+plot_3effects = function(
+  model, 
+  title, 
+  add_plot = NULL, 
+  color = "black", fill = "lightgray", alpha = .5,
+  by = c("", "TestTalker", "ExposureTestTalker")[1],
+  .width = c(.5, .95)
 ) {
   # Names of effects (ordered in the way they are meant to be displayed later)
   effect.names = c("Cond.MT.vs.ST", "Cond.ST.vs.CNTL", "Cond.MT.vs.CNTL", "Cond.TS.vs.CNTL")
@@ -252,6 +252,7 @@ plot_3effects = function(model, title, add_plot = NULL,
     # in those effects.
     { 
       if (by == "ExposureTestTalker") {
+        stop("By exposure talker is not implememnted.")
         left_join(
           .,
           # model %>%
@@ -314,9 +315,13 @@ plot_3effects = function(model, title, add_plot = NULL,
   }
   
   p = p + 
-    geom_halfeyeh(
-      data = d.m,
-      color = color, alpha = alpha, fill = fill, scale = .8, .width = c(0.50, 0.95)) + 
+    { if (!is.null(.width)) 
+      geom_halfeyeh(
+        data = d.m,
+        color = color, alpha = alpha, fill = fill, scale = .8, .width = .width) else 
+      stat_slabh(
+        data = d.m,
+        color = color, alpha = alpha, fill = fill, scale = .8) } + 
     { if (by == "TestTalker") facet_grid( . ~ TestTalker) } +
     { if (by == "ExposureTestTalker") facet_wrap(~ ExposureTestTalker) } +
     geom_vline(xintercept = 0, linetype = 2) +
@@ -369,6 +374,7 @@ plot_3effects_var = function(
       condition = factor(condition, 
                          levels = effect.names)) %>%
     group_by(Model, condition) %>%
+    # Using SD of posterior samples to estimate SE of estimate.
     dplyr::summarise(.value = sd(.value)) %>%
     ggplot(aes(x = Model, y = .value, fill = Model)) +
     geom_bar(stat = "identity") +
@@ -446,8 +452,10 @@ plot_predicted_outcome = function(
     coord_cartesian(ylim = c(0.75,1.0)) +
     { if (length(groups) > 0) facet_grid(cols = vars(!!! syms(groups[1]))) }  +
     theme(legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
-  ggsave(p, filename = paste0("../figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
-         height = 7, width = 7)
+  
+  ggsave(p, 
+         filename = paste0("../figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
+         height = 3.7, width = 15)
   
   return(p)
 }
@@ -1581,8 +1589,10 @@ To address our second question:
 
 we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts by the combination of exposure and test talker (coded as "0" for all but the single talker condition). This was done in addition to the random intercepts and slopes by test talker added in the previous section. This added one additional parameter to the analysis (the standard deviation of the random intercept by combination of exposure and test talker) to model the 21 unique random intercepts (20 unique combinations of exposure and test talker in the single talker condition + "0"). By adding a random intercept by combination of exposure and test talker, rather than by exposure talker, we can capture that the same exposure talker might have a different effect on transcription accuracy during test depending on the test talker. This avoids the assumption that the effects of exposure and test talkers are independent of each other.^[Note that it was impossible to include random slopes for the exposure condition by combination of exposure and test talker since exposure condition varied *between* combinations of exposure and test talker.]
 
-### Experiment 1a (ADD RESULTS DESCRIPTION)
+### Experiment 1a
 We first plot the predicted transcription accuracy during test for each of the four exposure conditions, depending on the exposure and test talker. The five different exposure talkers for the single talker condition of each test talker are shown as separate pointranges. Within each test talker, the exposure talkers are alphanumerically sorted in ascending order from left to right. For example, for test talker 035, the five point ranges correspond to (from left to right): 016, 021, 032, 037, and 043.
+
+This plot shows that there is substantial variability across the combinations of exposure and test talkers. Even within each test talker, there is substantial variability across the different exposure talkers in the single talker condition. At the same time, the analysis suggests high uncertainty about the predicted transcription accuracy in the single talker condition. This is not surprising given that each experiment only had four participants for each unique combination of exposure and test talker in the single talker condition. We thus do not necessarily expect the same pattern of differences in the Experiment 1b.
 
 ```{r, fig.height=3.5, fig.width=15}
 plot_predicted_outcome(
@@ -1593,7 +1603,7 @@ plot_predicted_outcome(
   experiment = "1a")
 ```
 
-Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the results for talker-specific adaptation and Question 1 (comparing the multi-talker condition against the control) do not change. The results for Questions 2 and 3, however, do depend on the mean of the single talker condition, and thus change in the updated model.
+Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the results for talker-specific adaptation and Question 1 (comparing the multi-talker condition against the control) do not change much. The results for Questions 2 and 3, however, exhibit somewhat larger changes in the updated model---presumably because both of these questions depend on the predicted mean of the single talker condition. Overall, the results are pretty much the same as in the model in the previous section, except that we now do not any longer have strong support for a positive answer to Question 2 in any of the four different test talkers (whereas there was strong support for a positive answer for test talker 035 in the model withtout random effects by exposure-test talker combination.
 
 ```{r, fig.height=20, fig.width=20}
 # plot_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
@@ -1607,7 +1617,10 @@ table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
                scope = "ranef", group = "TestTalkerID")
 ```
 
-### Experiment 1b (ADD RESULTS DESCRIPTION)
+### Experiment 1b
+
+Plotting the predicted effects, we again see variability across the different combinations of exposure and test talker as well as substantial uncertainty about these differences. 
+
 ```{r, fig.height=3.5, fig.width=15}
 plot_predicted_outcome(
   data = d.exp1b.test,
@@ -1616,6 +1629,8 @@ plot_predicted_outcome(
   n.draws = 2000,
   experiment = "1b")
 ```
+
+Replicating the analysis by test talkers, we find that only the talker-specific effect receives strong support within each test talker.
 
 ```{r, fig.height=20, fig.width=20}
 table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
@@ -1663,9 +1678,9 @@ models.diff = list("no by-talker" = m.exp1a.test.diff,
                    "by test talker" = m.exp1a.test.diff.wTestTalker, 
                    "by exposure &\ntest talker" = m.exp1a.test.diff.wExposure_crossed_with_TestTalker)
 
-p = plot_3effects(models.diff[[3]], title = "Experiment 1a", alpha = .5, fill = colors.model[3]) 
-p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 
-p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .5, fill = colors.model[1]) 
+p = plot_3effects(models.diff[[3]], title = "Experiment 1a", alpha = .5, fill = colors.model[3], .width = NULL) 
+p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2], .width = NULL) 
+p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .5, fill = colors.model[1], .width = NULL) 
 p = plot_3effects_var(models.diff, add_plot = p, rel_widths = c(.75, .25))
 
 p
@@ -1676,9 +1691,9 @@ models.diff = list("no by-talker" = m.exp1b.test.diff,
                    "by test talker" = m.exp1b.test.diff.wTestTalker, 
                    "by exposure &\ntest talker" = m.exp1b.test.diff.wExposure_crossed_with_TestTalker)
 
-p = plot_3effects(models.diff[[3]], title = "Experiment 1b", alpha = 1, fill = colors.model[3]) 
-p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2]) 
-p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .25, fill = colors.model[1]) 
+p = plot_3effects(models.diff[[3]], title = "Experiment 1b", alpha = 1, fill = colors.model[3], .width = NULL) 
+p = plot_3effects(models.diff[[2]], add_plot = p, alpha = .5, fill = colors.model[2], .width = NULL) 
+p = plot_3effects(models.diff[[1]], add_plot = p, alpha = .25, fill = colors.model[1], .width = NULL) 
 p = plot_3effects_var(models.diff, add_plot = p, rel_widths = c(.75, .25))
 
 p
@@ -1884,7 +1899,7 @@ xhypotheses(list(hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.dif
 
 
 
-# Replication analysis (ADD VISUALIZATION)
+# Replication analysis
 
 Use the previous data to establish a prior. You may want to construct a normal prior centered at their estimate, with a standard deviation equal to their SD (Martin proposed SE) estimate. Do this for every coefficient. Construct two models, WITHOUT using the ~ syntax. You need to use the target += normal_lpdf(…) syntax. (This is because we will need to compute the marginal likelihood, with all normalizing constants present, and the ~ syntax drops those constants). The first model has the full model, with priors defined in step 1. The second model has the reduced model, with the coefficient of interest implicitly set to zero (as in, it isn’t present). Everything else is the same as in the first model. Estimate both models using the replication data.
 
@@ -2162,7 +2177,7 @@ p %<>%
     coef = ifelse(class == "Intercept", "", coef)
   )
 
-my.newpriors = c(
+my.newpriors.ST.vs.MT = c(
   set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
   set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
   set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
@@ -2174,7 +2189,7 @@ my.newpriors = c(
   set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
   prior(lkj(1), class = cor)
 )
-my.newpriors.woST.vs.MT = my.newpriors[-2,]
+my.newpriors.woST.vs.MT = my.newpriors.ST.vs.MT[-2,]
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 4: Run same numerically-coded model on new data, but with priors based on original data  
@@ -2187,7 +2202,7 @@ m.exp1b.test.treat.full.Q3 <- brm(
   data = d.exp1b.test, family = bernoulli, 
   iter = nsamples.total, warmup = nsamples.warmup, 
   chains = max.cores, cores = max.cores,
-  prior = my.newpriors, save_all_pars = T, 
+  prior = my.newpriors.ST.vs.MT, save_all_pars = T, 
   save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.Q3.stan", 
   file = "../models/exp1b.Test.treat.numerical_coded_conditions.Q3"
 )
@@ -2236,8 +2251,6 @@ if (!file.exists(filename.b2.a)) {
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 bf(b1, b2.woST.vs.MT)
 ```
-
-
 
 
 # Similarity-based analysis

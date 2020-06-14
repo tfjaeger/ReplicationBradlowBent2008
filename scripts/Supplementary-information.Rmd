@@ -1421,12 +1421,14 @@ my.priors.wTalker.diff = c(
   # Uniform prior of correlations
   prior(lkj(1), class = cor)
 )
-m.exp1a.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
-                                 data = d.exp1a.test, family = bernoulli, cores = max.cores, chains =  4, 
-                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
-                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
-                                 prior = my.priors.wTalker.diff, file = "../models/exp1a.Test.diff.wTestTalker")
+m.exp1a.test.diff.wTestTalker <- brm(
+  IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
+  data = d.exp1a.test, family = bernoulli, cores = max.cores, chains =  4, 
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+  control = list(adapt_delta = 0.99995, max_treedepth = 15),  
+  prior = my.priors.wTalker.diff, 
+  file = "../models/exp1a.Test.diff.wTestTalker")
 
 
 ###################################### Experiment 1b
@@ -1440,12 +1442,13 @@ my.priors.wTalker.diff = c(
   # Uniform prior of correlations
   prior(lkj(1), class = cor)
 )
-m.exp1b.test.diff.wTestTalker <- brm(IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
-                                   (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
-                                 data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
-                                 warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
-                                 control = list(adapt_delta = 0.9999, max_treedepth = 15),  
-                                 prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wTestTalker")
+m.exp1b.test.diff.wTestTalker <- brm(
+  IsCorrect ~ Cond.diff + offset(individual_training_performance.offset) + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) + (1 + Cond.diff | TestTalkerID),  
+  data = d.exp1b.test, family = bernoulli, cores = max.cores, chains = 4, 
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker, 
+  control = list(adapt_delta = 0.9999, max_treedepth = 15),  
+  prior = my.priors.wTalker.diff, file = "../models/exp1b.Test.diff.wTestTalker")
 ```
 
 

@@ -1466,8 +1466,7 @@ plot_predicted_outcome(
   model = m.exp1a.test.diff.wTestTalker,
   groups = "TestTalkerID",
   n.draws = 2000,
-  experiment = "1a",
-  offset.term = "individual_training_performance.linear")
+  experiment = "1a")
 ```
 
 We can also conduct the Bayesian hypothesis tests for Questions 1-3 separately for each test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
@@ -1498,8 +1497,7 @@ plot_predicted_outcome(
   model = m.exp1b.test.diff.wTestTalker,
   groups = "TestTalkerID",
   n.draws = 2000,
-  experiment = "1b",
-  offset.term = "individual_training_performance.linear")
+  experiment = "1b")
 ```
 
 ```{r}

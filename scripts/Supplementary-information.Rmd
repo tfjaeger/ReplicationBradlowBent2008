@@ -2293,7 +2293,7 @@ We nevertheless report our approach and findings here, primarily for two reasons
 
 ## Subjective similarity ratings
 
-We investigated whether perceived talker-to-talker similarity explains differences in cross-talker generalization. We obtained sentence-by-sentence similarity ratings for all exposure and test talker pairs from Exp 1 & 2 from 48 participants over Mechanical Turk. 
+We investigated whether perceived talker-to-talker similarity explains differences in cross-talker generalization. We obtained sentence-by-sentence similarity ratings for all exposure and test talker pairs from Exp 1 & 2 from 48 participants over Mechanical Turk (for a similar task, see Strand, 2000). <!--Johnson 2006 "Resonance in an exemplar-based lexicon" summarizes strand [search for "similarity"] -->
 
 
 MORE INFORMATION HERE

@@ -762,11 +762,13 @@ p = plot(conditional_effects(m.brm.exp1ab.train.wExperiment, effects = c("Cond.d
                          re_formula = NA), ask = F, plot = F)
 p[[1]] +
   scale_x_discrete("Exposure condition") +
-  scale_y_continuous("Predicted proportion correct")
+  scale_y_continuous("Predicted proportion correct") +
+  theme_bw()
 
 p[[2]] + 
   scale_x_continuous("Trial bin\n(standardized)") +
-  scale_y_continuous("Predicted proportion correct")
+  scale_y_continuous("Predicted proportion correct") +
+  theme_bw()
 
 s = summary(m.brm.exp1ab.train.wExperiment)$fixed
 colnames(s) = c("Est.", "SE", "$CI_{lower}$", "$CI_{upper}$", "$\\hat{R}$", "Eff. samples (bulk)", "Eff. samples (tail)")
@@ -824,16 +826,20 @@ m.brm.exp1ab.train = brm(IsCorrect ~ Cond.diff * sQuintile +
                          family = bernoulli, cores = max.cores, chains = 4, 
                          warmup = 2000, iter = 4000, 
                          prior = my.priors, file = "../models/exp1ab.Training.diff")
-p = plot(conditional_effects(m.brm.exp1ab.train, effects = c("Cond.diff", "Cond.diff:sQuintile"),
-                         # set to NULL to add uncertainty about all random effects
+
+p = plot(conditional_effects(m.brm.exp1ab.train, effects = c("Cond.diff", "sQuintile:Cond.diff"),
                          re_formula = NA), ask = F, plot = F)
 p[[1]] + 
   scale_x_discrete("Exposure condition") + 
-  scale_y_continuous("Predicted proportion correct")
+  scale_y_continuous("Predicted proportion correct") +
+  theme_bw()
 p[[2]] + 
-  scale_x_discrete("Exposure condition") + 
+  scale_x_discrete("Trial bin\n(standardized)") + 
   scale_y_continuous("Predicted proportion correct") + 
-  scale_color_discrete("Trial bin\n(standardized)")
+  scale_color_discrete("Exposure condition") +
+  scale_fill_discrete("Exposure condition") +
+  theme_bw() +
+  theme(legend.position = "bottom")
 ```
 
 
@@ -900,30 +906,39 @@ d.exp1b.test %<>% add_individual_performance()
 
 We first compared the estimates of individual differences against estimates derived from the full model that additionally contained experiment as a predictor, as well as its interaction with trial block and exposure condition. The goal of this comparison is to see how our decision to *not* include experiment in the estimation of individual differences affects the estimated individual differences. The black shapes show the mean across participants in that condition and experiment.
 
-```{r, fig.width=5}
-d.exp1ab.test %>%
+```{r, fig.width=6}
+myGplot.defaults(type = "paper")
+
+p = d.exp1ab.test %>%
   dplyr::select(Experiment, WorkerID, Condition, starts_with("individual_training_performance")) %>%
   distinct() %>%
   group_by(Experiment, WorkerID, Condition) %>%
   dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
   { . ->> temp } %>%
-ggplot(aes(x = individual_training_performance.linear, y = individual_training_performance.linear.wExperiment, shape = Experiment, color = Experiment)) +
+  ggplot(
+    aes(
+      x = individual_training_performance.linear, 
+      y = individual_training_performance.linear.wExperiment, 
+      shape = Experiment, 
+      color = Experiment)) +
   geom_abline(slope = 1) +
   geom_point(alpha = .5) +
   geom_point(data = temp %>%
-         group_by(Experiment, Condition) %>%
-         dplyr::summarise_all(mean),
-         size = 3, alpha = 1, color = "black"
-  ) +
+               group_by(Experiment, Condition) %>%
+               dplyr::summarise_all(mean),
+             size = 3, alpha = 1, color = "black") +
   scale_x_continuous("by-participant adjustment from linear model") +
   scale_y_continuous("by-participant adjustment from linear model + experiment") +
   facet_wrap(~ Condition)
+print(p)
 ```
 
 Zooming in ...
 
-```{r, fig.width=5}
-last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
+```{r, fig.width=6}
+p + 
+  coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5)) +
+  theme_bw()
 ```
 
 ### Relaxing the assumption of linear effects during exposure 
@@ -931,28 +946,47 @@ last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
 Finally, the model we used above to estimate individual differences at the onset of exposure assumes that effect of increasing exposure (trial blocks) on the log-odds of accurate transcriptions are linear. To ascertain that this linearity assumption does not introduce undue bias to the estimation of the effects at the beginning of the experiment, we also fit a model that did only assume monotonicity of the changes across qunitiles, rather than the stronger qssumption of linearity (in log-odds). This model makes a very similar predictions for the effects during exposure:
 
 ```{r, fig.width=5}
-plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
+myGplot.defaults(type = "paper")
+p = plot(conditional_effects(m.brm.exp1ab.train.monotonic, 
                          # set to NULL to add uncertainty about all random effects
                          re_formula = NA), ask = F)
+
+p[[1]] + 
+  scale_x_discrete("Exposure condition") + 
+  scale_y_continuous("Predicted proportion correct") +
+  theme_bw()
+p[[3]] + 
+  scale_x_discrete("Trial bin\n(standardized)") + 
+  scale_y_continuous("Predicted proportion correct") + 
+  scale_color_discrete("Exposure condition") +
+  scale_fill_discrete("Exposure condition") +
+  theme_bw() +
+  theme(legend.position = "bottom")
 ```
 
 Critically, there is no evidence that the linearity assumption causes any bias in the estimation of individual differences, compared to the model that merely assumes monotonicity. The two models provide *very similar* estimates of participants' performance during the first exposure block:
 
-```{r, fig.height=6, fig.width=7}
-d.exp1ab.test %>%
+```{r, fig.width=6}
+myGplot.defaults(type = "paper")
+
+p = d.exp1ab.test %>%
   dplyr::select(Experiment, WorkerID, Condition, starts_with("individual_training_performance")) %>%
   distinct() %>%
   group_by(Experiment, WorkerID, Condition) %>%
   dplyr::summarise_at(vars(starts_with("individual_training_performance")), mean) %>%
   { . ->> temp } %>%
-ggplot(aes(x = individual_training_performance.linear, y = individual_training_performance.monotonic, shape = Experiment, color = Experiment)) +
+  ggplot(
+    aes(
+      x = individual_training_performance.linear, 
+      y = individual_training_performance.monotonic, 
+      shape = Experiment, 
+      color = Experiment)) +
   geom_abline(slope = 1) +
   geom_point(alpha = .5) +
   geom_point(data = temp %>%
-         group_by(Experiment, Condition) %>%
-         dplyr::summarise_all(mean),
-         size = 3, alpha = 1, color = "black"
-  ) +
+               group_by(Experiment, Condition) %>%
+               dplyr::summarise_all(mean),
+             size = 3, alpha = 1, color = "black") +
   scale_x_continuous("by-participant adjustment from linear model") +
   scale_y_continuous("by-participant adjustment from monotonic model") +
   facet_wrap(~ Condition)
@@ -960,8 +994,10 @@ ggplot(aes(x = individual_training_performance.linear, y = individual_training_p
 
 Zooming in ...
 
-```{r}
-last_plot() + coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5))
+```{r, fig.width=6}
+p + 
+  coord_cartesian(xlim = c(-.5, .5), ylim = c(-.5, .5)) +
+  theme_bw()
 ```
 
 In the remainder of the analyses, we thus used the linear model because it is more common and readers are more familiar with it. Given the high similarity in the estimates, we never investigated whether individual differences based on the monotonic model would change any of the results for the test data.

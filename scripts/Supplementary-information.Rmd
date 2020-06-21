@@ -64,17 +64,27 @@ library(tidyverse)
 library(magrittr)
 library(modelr)
 library(broom)
+library(knitr)
+
 library(cowplot)
 library(ggridges)
 library(scales)
 library(viridis)
+
 library(lme4)
 library(brms)
 library(bridgesampling)
 library(tidybayes)
 library(bayesplot)
+
+library(tictoc)
+library(foreach)
+library(doParallel)
+library(future.apply)
+
 library(actuar)
 library(fitdistrplus)
+library(mvtnorm)
 library(pBrackets)
 library(lubridate)
 
@@ -567,9 +577,9 @@ d.exp1ab = rbind(d.exp1a, d.exp1b) %>%
 ```
 
 # README FIRST
-This markdown document presents all analyses reported in the paper, and provides additional tables, visualization, and analyses. We have intentionally *not* set a random seed for our analyses. Thus, the specific numbers for the Bayesian models might differ from those reported in the paper. Over the course of our analysis, we conducted all analyses repeatedly and never noticed changes in the qualitative results.
+This markdown document presents all analyses reported in the paper, and provides additional tables, visualization, and analyses. We have intentionally *not* set a random seed for our analyses. Thus, the specific numbers for the Bayesian models might differ from those reported in the paper. Over the course of our analysis, we conducted all analyses repeatedly and did not notice qualitative changes in the results.
 
-**Note that the analyses in this markdown document might take several days to complete.**
+**Note that the analyses in this markdown document might take several days to complete.** The reason we do not provide the completed models as part of the repository is the size of the files. The small Bayesian models are about 10-30MB. The main analyses, meta-analysis, and the models necessary for the replication analyses are between 300-600MB each. All models together require over 10 GB of space. **If you are interested in specific models and do not have the computing environment to refit them, please contact the authors.**  
 
 We begin by reporting basic information about participants and item balancing, demographics and audio equipment. We then present analyses of the training and test data, including full reports of all models referred to in the main text of the paper, as well as auxiliary analyses that support the conclusions offered in the main text.
 
@@ -668,12 +678,7 @@ d.exp1ab %>%
 #xtabs(~ TalkerID + Condition + TestTalkerID + ListNum + TrainingTestSet,.) #To find what to balance
 ```
 
-
-
-
-
-
-# Performance during exposure phase in Experiments 1a and 1b
+# Exposure phase (Experiments 1a and 1b)
 
 Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the the five trial blocks.
 
@@ -1152,7 +1157,7 @@ In the analysis of the test data, we thus include the individual differences in 
 
 
 \newpage
-# Test - Experiment 1a
+# Test phase - Experiment 1a
 
 In order to address the three questions we ask in the main text (Table 1), we need to compare test performance between the multi-talker and control condition (*Question 1: Is there cross-talker generalization after multi-talker exposure?*), between the single talker and control condition (*Question 2: Is there cross-talker generalization after single talker exposure?*), and the multi-talker and single talker condition (*Question 3: Does multi-talker exposure facilitate cross-talker generalization, compared to single talker exposure?*). 
 
@@ -1260,12 +1265,16 @@ p.test.emplogit = plot_base %+%
   geom_dotplot(binaxis = "y", stackdir = "center", alpha = .3, position = position_dodge(.9)) +
   scale_y_continuous("Empirical logits of correctly transcribed") 
 
-p.test.emplogit
 ggsave(p.test.emplogit, filename = "../figures/p.exp1a.emplogit.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
-
 ```
 
-## Results for Questions 1-3
+
+## Sliding difference-coded analyses
+```{r, exp1a test block analysis - contrasts for sliding difference coding}
+contrasts(d.exp1a.test$Cond.diff)
+```
+
+### Questions 1-3
 ```{r plots for Exp 1a, fig.width=8, fig.height=4}
 plot_3effects(m.exp1a.test.diff, "Experiment 1a", fill = colors.model[1]) 
 ggsave("../figures/exp1a_Q123_effects.pdf", width = 8, height = 3.5)
@@ -1273,19 +1282,22 @@ ggsave("../figures/exp1a_Q123_effects.pdf", width = 8, height = 3.5)
 table_3effects(m.exp1a.test.diff)
 ```
 
-## Sliding difference-coded analyses
-```{r, exp1a test block analysis - contrasts for sliding difference coding}
-contrasts(d.exp1a.test$Cond.diff)
+### Talker-specific vs. multi-talker exposure
+
+Due to space limitations, we do not discuss all results of theoretical relevance in the main text. Beyond talker-specific adaptation and Questions 1-3, the differences between the talker-specific and multi-talker conditions is also of interest. It indicates whethercross-talker generalization was essentially as good as the best possible performance. BB08 found no signficiant difference between their talker-specific and multi-talker condition. Here, we do not replicate that result. 
+
+```{r, exp1a test block analysis - hypotheses for sliding difference coding}
+xhypotheses(list(hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
 ```
+
+One possible explanation for this difference is that the exposure talkers in our experiments were *together* less similar to the test talkers, compared to the exposure and test talkers in BB08. If cross-talker generalization is at least in part based on similarity-based inferences (see General Discussion), this would explain why multi-talker exposure does not reach the same level of performances as talker-specific exposure in the present experiments.
+
+An alternative, though not mutually exclusive, explanation is that the full benefit of multi-talker exposure only becomes apparent after longer exposure (recall that participants in BB08 were exposure to twice as many sentences over two exposure sessions distributed over two days). One reason to expect this to be the case is that participants in the multi-talker condition receive less input from each talker, so that additional input might help participants to form a more accurate model of the exposure talker's pronunciation. To the extent that an exposure talker's pronunciations are informative about the test talker's pronunciation, this is expected to facilitate performance during test.
+
 
 ### Model summary
 ```{r, exp1a test block analysis - model output for sliding difference coding, warning=TRUE, size = "footnotesize"}
 summary(m.exp1a.test.diff)
-```
-
-### Additional hypothesis tests
-```{r, exp1a test block analysis - hypotheses for sliding difference coding}
-xhypotheses(list(hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
 ```
 
 
@@ -1300,7 +1312,7 @@ contrasts(d.exp1a.test$Cond.treat)
 summary(m.exp1a.test.treat)
 ```
 
-### Additional hypothesis tests
+### Questions 1-2 (via treatment-coding)
 
 ```{r, exp1a test block analysis - hypotheses for treatment coding}
 xhypotheses(
@@ -1318,7 +1330,7 @@ xhypotheses(
 
 
 \newpage
-# Test - Experiment 1b
+# Test phase - Experiment 1b
 
 ```{r, exp1b test block analysis - main level - also plot this}
 # offset model
@@ -1347,17 +1359,23 @@ p.test.proportion %+%
      dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) 
 ggsave(filename = "../figures/p.exp1b.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
 
-p.test.emplogit %+% (
+p = p.test.emplogit %+% (
   d.exp1b.test %>%
     group_by(WorkerID, Sentence) %>%
     distinct(.keep_all = TRUE) %>%
     group_by(WorkerID, Condition) %>%
     dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51)))
-ggsave(filename = "../figures/p.exp1b.emplogit.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
+ggsave(p, filename = "../figures/p.exp1b.emplogit.pdf", device = cairo_pdf, width = 6, height = 4, dpi=300)
 ```
 
 
-## Results for Questions 1-3
+
+## Sliding difference-coded analyses
+```{r, exp1b test block analysis - contrasts for sliding difference coding}
+contrasts(d.exp1b.test$Cond.diff)
+```
+
+### Questions 1-3
 
 ```{r plots for Exp 1b, fig.width=8, fig.height=4}
 plot_3effects(m.exp1b.test.diff, "Experiment 1b", fill = colors.model[1]) 
@@ -1366,19 +1384,19 @@ ggsave("../figures/exp1b_Q123_effects.pdf", width = 8, height = 3.5)
 table_3effects(m.exp1b.test.diff)
 ```
 
-## Sliding difference-coded analyses
-```{r, exp1b test block analysis - contrasts for sliding difference coding}
-contrasts(d.exp1b.test$Cond.diff)
+### Talker-specific vs. multi-talker exposure
+
+See Experiment 1a for relevance. While the support for a difference between the talker-specific and multi-talker conditions is not as strong as in Experiment 1a (similar to all other effects in Experiment 1b), we find that performance during test after multi-talker exposure did not fully approach performance after talker-specific exposure. This deviates from BB08.
+
+```{r, exp1b test block analysis - hypotheses for sliding difference coding}
+xhypotheses(list(hypothesis(m.exp1b.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")))
 ```
+
+
 
 ### Model summary
 ```{r, exp1b test block analysis - model output for sliding difference coding, warning=TRUE, size = "footnotesize"}
 summary(m.exp1b.test.diff)
-```
-
-### Additional hypothesis tests
-```{r, exp1b test block analysis - hypotheses for sliding difference coding}
-xhypotheses(list(hypothesis(m.exp1b.test.diff, "Cond.diffMT.vs.ST > 0", class = "b")))
 ```
 
 
@@ -1393,7 +1411,7 @@ contrasts(d.exp1b.test$Cond.treat)
 summary(m.exp1b.test.treat)
 ```
 
-### Additional hypothesis tests
+### Questions 1-2 (via treatment-coding)
 
 ```{r, exp1b test block analysis - hypotheses for treatment coding}
 xhypotheses(
@@ -1411,10 +1429,439 @@ xhypotheses(
 
 
 
+\newpage
+# Do Experiments 1a and 1b support the same conclusions?
+
+```{r combined experiments 1a and 1b test data}
+d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
+                                  levels = c("1a", "1b"))
+contrasts(d.exp1ab.test$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
+
+myGplot.defaults(type = "paper")
+p.test.proportion %+%
+  (d.exp1ab.test %>%
+  group_by(Experiment, WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  group_by(Experiment, WorkerID, Condition) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) + 
+  aes(shape = Experiment) + theme(legend.position = "bottom")
+ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
+
+p.test.emplogit %+% 
+  (d.exp1ab.test %>%
+  group_by(Experiment, WorkerID, Sentence) %>%
+  distinct(.keep_all = TRUE) %>%
+  group_by(Experiment, WorkerID, Condition) %>%
+	dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51))) + 
+  aes(shape = Experiment) + theme(legend.position = "bottom")
+ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.emplogit.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
+```
+
+## Meta-analysis (Experiments 1a and 1b)
+We combine the data from both experiments and then repeats the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability.
+
+```{r meta-analysis}
+m.exp1ab.noAdditionalPredictors.test.diff <- brm(
+  IsCorrect ~ 
+    offset(individual_training_performance.offset) + Cond.diff + 
+    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+  data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+  warmup = nsamples.warmup, iter = nsamples.total, 
+  prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
+
+# Without any correction
+# m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(
+#   IsCorrect ~ 
+#     Cond.diff + 
+#     (1 + Cond.diff | Sentence) + (1 | WorkerID),  
+#   data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
+#   warmup = nsamples.warmup, iter = nsamples.total, 
+#   prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
+```
+
+
+### Results for Questions 1-3
+```{r plots for Exp 1ab.noAdditionalPredictors, fig.width=8, fig.height=4}
+plot_3effects(m.exp1ab.noAdditionalPredictors.test.diff, "Experiments 1a and 1b", fill = colors.model[1]) 
+ggsave("../figures/exp1ab_Q123_effects.noAdditionalPredictors.pdf", width = 8, height = 3.5)
+
+table_3effects(m.exp1ab.noAdditionalPredictors.test.diff)
+```
+
+### Talker-specific vs. multi-talker exposure
+```{r, exp1ab.noAdditionalPredictors test block analysis - hypotheses for sliding difference coding}
+xhypotheses(list(hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
+```
+
+
+### Model summary
+
+```{r, exp1ab.noAdditionalPredictors test block analysis - model output for sliding difference coding, warning=TRUE}
+summary(m.exp1ab.noAdditionalPredictors.test.diff)
+```
+
+
+
+## Replication analysis (Experiments 1a and 1b)
+
+Use the previous data to establish a prior. You may want to construct a normal prior centered at their estimate, with a standard deviation equal to their SD (Martin proposed SE) estimate. Do this for every coefficient. Construct two models, WITHOUT using the ~ syntax. You need to use the target += normal_lpdf(…) syntax. (This is because we will need to compute the marginal likelihood, with all normalizing constants present, and the ~ syntax drops those constants). The first model has the full model, with priors defined in step 1. The second model has the reduced model, with the coefficient of interest implicitly set to zero (as in, it isn’t present). Everything else is the same as in the first model. Estimate both models using the replication data.
+
+```{r, set up replication analysis based on bridge sampling}
+# High number of posterior samples required for bridge_sampling
+nsamples.warmup = 1000
+nsamples.total = nsamples.total.max
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 1: set priors and contrasts
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
+# ambiguous continuum step (rather than center). Binary factors should be coded to have level-
+# distance of 1. Then we follow https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations 
+# and set the scale of the our t-prior to 2.5
+my.priors = c(
+    # Following Gelman et al (2008) and later revisions on wiki.
+    # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
+    # Second parameter is mu: should be 0 to be unbiased
+    # Third parameter is sigma: larger means wider
+    prior(student_t(3,0,2.5), class = b),
+    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
+    prior(cauchy(0,5), class = sd), 
+    # Uniform prior of correlations
+    prior(lkj(1), class = cor)
+)
+
+d.exp1a.test = d.exp1ab.test %>% filter(Experiment == "1a") %>% defineContrasts()
+d.exp1b.test = d.exp1ab.test %>% filter(Experiment == "1b") %>% defineContrasts()
+```
+
+
+### Questions 1-2 + Talker-specific adaptation
+
+```{r, replication analysis with treatment coding, message=F, warning=F}
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 2: Run model on original data. But with numerically coded variables instead of contrast
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1a.test.treat <- brm(
+  IsCorrect ~ offset(individual_training_performance.offset) + 
+    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1a.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.priors, 
+  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.stan", 
+  file = "../models/exp1a.Test.treat.numerical_coded_conditions"
+)
+
+# Let's look at this model
+# stancode(m.exp1a.test.treat)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 3: Derive priors from original data.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+model = m.exp1a.test.treat
+p = posterior_samples(model)
+
+
+p %<>%
+  dplyr::select(-starts_with("r_")) %>%
+  dplyr::select(-starts_with("lp_")) %>%
+  summarise_all(
+    .funs = c("mean", "mode", "sd", "se") 
+  ) %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "coef") %>%
+  mutate(
+    property = gsub("^.*_([a-z]+)$", "\\1", coef),
+    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
+  ) %>%
+  spread(property, V1) %>%
+  mutate(
+    class = gsub("^([a-z]+)_.*$", "\\1", coef),
+    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
+    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
+    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
+    prior = case_when(
+      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
+      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
+    )
+  ) %>% 
+  filter(class != "cor") %>%                          # For now removing correlation priors
+  dplyr::select(prior, class, coef, group) %>%
+  mutate(
+    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
+    coef = ifelse(class == "Intercept", "", coef)
+  )
+
+my.newpriors = c(
+  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
+  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
+  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
+  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
+  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
+  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
+  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
+  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
+  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
+#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
+  prior(lkj(1), class = cor)
+)
+my.newpriors.woTS.vs.CNTL = my.newpriors[-3,]
+my.newpriors.woMT.vs.CNTL = my.newpriors[-1,]
+my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.full <- brm(
+  IsCorrect ~ offset(individual_training_performance.offset) + 
+    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) +
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.stan", 
+  file = "../models/exp1b.Test.treat.numerical_coded_conditions"
+)
+
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
+#         with one parameter set to 0 (removed). Again use priors based on original data. 
+#         
+#         NB: We're keeping the random effects for the null effect in the model.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.woTS.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.offset) + 
+    Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woTS.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woTS.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions"
+)
+m.exp1b.test.treat.woMT.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.offset) + 
+    Cond.treatTS.vs.CNTL + Cond.treatST.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woMT.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woMT.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions"
+)
+m.exp1b.test.treat.woST.vs.CNTL <- brm(
+  IsCorrect ~ offset(individual_training_performance.offset) + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + 
+    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woST.vs.CNTL, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woST.vs.CNTL.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 5: Run the bridge sampler on all new models fit to the replication data
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.rds"
+filename.b2.a = "../models/bridge_exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions.rds"
+filename.b2.b = "../models/bridge_exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions.rds"
+filename.b2.c = "../models/bridge_exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions.rds"
+
+if (!file.exists(filename.b1)) {
+  b1 = bridge_sampler(
+    samples = m.exp1b.test.treat.full, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b1, file = filename.b1)
+} else {
+  b1 = readRDS(file = filename.b1)
+}
+
+if (!file.exists(filename.b2.a)) {
+  b2.woTS.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woTS.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woTS.vs.CNTL, file = filename.b2.a)
+} else {
+  b2.woTS.vs.CNTL = readRDS(file = filename.b2.a)
+}
+
+if (!file.exists(filename.b2.b)) {
+  b2.woMT.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woMT.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woMT.vs.CNTL, file = filename.b2.b)
+} else {
+  b2.woMT.vs.CNTL = readRDS(file = filename.b2.b)
+}
+
+if (!file.exists(filename.b2.c)) {
+  b2.woST.vs.CNTL = bridge_sampler(
+    samples = m.exp1b.test.treat.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woST.vs.CNTL, file = filename.b2.c)
+} else {
+  b2.woST.vs.CNTL = readRDS(file = filename.b2.c)
+}
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 6: Calculate all the relevant Bayes Factors
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+bf(b1, b2.woTS.vs.CNTL)
+bf(b1, b2.woMT.vs.CNTL)
+bf(b1, b2.woST.vs.CNTL)
+```
+
+
+
+### Questions 3
+
+To test replication of Question 3, we are recoding all treatment contrasts so that the multi-talker condition is the baseline. This allows us to assess replication of the treatment effect of the single talker condition, compared to the multi-talker baseline.
+
+```{r, replication analysis with treatment coding for Question 3}
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 2: Run model on original data. But with numerically coded variables instead of contrast
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1a.test.treat.Q3 <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1a.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.priors, 
+  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.Q3.stan", 
+  file = "../models/exp1a.Test.treat.numerical_coded_conditions.Q3"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 3: Derive priors from original data.
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+model = m.exp1a.test.treat.Q3
+p = posterior_samples(model)
+
+p %<>%
+  dplyr::select(-starts_with("r_")) %>%
+  dplyr::select(-starts_with("lp_")) %>%
+  summarise_all(
+    .funs = c("mean", "mode", "sd", "se") 
+  ) %>%
+  t() %>%
+  as.data.frame() %>%
+  rownames_to_column(var = "coef") %>%
+  mutate(
+    property = gsub("^.*_([a-z]+)$", "\\1", coef),
+    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
+  ) %>%
+  spread(property, V1) %>%
+  mutate(
+    class = gsub("^([a-z]+)_.*$", "\\1", coef),
+    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
+    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
+    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
+    prior = case_when(
+      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
+      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
+    )
+  ) %>% 
+  filter(class != "cor") %>%                          # For now removing correlation priors
+  dplyr::select(prior, class, coef, group) %>%
+  mutate(
+    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
+    coef = ifelse(class == "Intercept", "", coef)
+  )
+
+my.newpriors.ST.vs.MT = c(
+  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
+  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
+  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
+  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
+  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
+  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
+  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
+  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
+  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
+  prior(lkj(1), class = cor)
+)
+my.newpriors.woST.vs.MT = my.newpriors.ST.vs.MT[-2,]
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.full.Q3 <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) +
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.ST.vs.MT, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.Q3.stan", 
+  file = "../models/exp1b.Test.treat.numerical_coded_conditions.Q3"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
+#         with one parameter set to 0 (removed). Again use priors based on original data. 
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+m.exp1b.test.treat.woST.vs.MT <- brm(
+  IsCorrect ~ offset(individual_training_performance.linear) + 
+    Cond.treatTS.vs.MT + Cond.treatCNTL.vs.MT + 
+    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
+    (1 | WorkerID),  
+  data = d.exp1b.test, family = bernoulli, 
+  iter = nsamples.total, warmup = nsamples.warmup, 
+  chains = max.cores, cores = max.cores,
+  prior = my.newpriors.woST.vs.MT, save_all_pars = T, 
+  save_model = "../models/m.exp1b.test.treat.woST.vs.MT.numerically_coded_conditions.stan",
+  file = "../models/exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions"
+)
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 5: Run the bridge sampler on all new models fit to the replication data
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.Q3.rds"
+filename.b2.a = "../models/bridge_exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions.rds"
+
+if (!file.exists(filename.b1)) {
+  b1 = bridge_sampler(
+    samples = m.exp1b.test.treat.full.Q3, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b1, file = filename.b1)
+} else {
+  b1 = readRDS(file = filename.b1)
+}
+
+if (!file.exists(filename.b2.a)) {
+  b2.woST.vs.MT = bridge_sampler(
+    samples = m.exp1b.test.treat.woST.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
+  saveRDS(b2.woST.vs.MT, file = filename.b2.a)
+} else {
+  b2.woST.vs.MT = readRDS(file = filename.b2.a)
+}
+
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# Step 6: Calculate all the relevant Bayes Factors
+## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+bf(b1, b2.woST.vs.MT)
+```
+
+
+
+
+
 
 \newpage
-
-# Consequences of by-talker variability
+# Consequences of by-talker variability (Experiments 1a and 1b)
 
 Unlike the original study by Bradlow and Bent (2008), our replication included multiple (4) test talkers and many exposure-test talker combinations (20 for the single talker condition, 4 each for the control, multi-talker and talker-specific conditions). This allows us to begin to assess the consequences of cross-talker variability on the effects of exposure. We present additional analyses that account for cross-talker differences, allowing us to assess whether our conclusions would differ if Experiments 1a and 1b had only used a subset of the exposure and test talkers. In particular, we ask two questions:
 
@@ -1760,525 +2207,197 @@ summary(m.exp1b.test.diff.wExposure_crossed_with_TestTalker)
 
 
 
-\newpage
-# Performance across time (2-3 year span)
-
-Experiments 1a and 1b were run at different times, almost 2 years apart. In both case, we recruited an initial number of participants and then completed to fill up lists until the pre-specified number of participants per condition was reached. This left us with data from participants that had taken the experiment at different times.
-
-## Exposure block
-
-```{r, training across time}
-# DaysSinceFirst is set so that 1 means first day. (so 'days since start of experiment')
-myGplot.defaults(type = "paper")
-
-# Training performance
-d.exp1ab.training %>% 
-  filter(Quintile == 0) %>%
-  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
-  group_by(WorkerID, Condition) %>% 
-  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
-  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
-  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
-  geom_smooth(method = "lm") + 
-  scale_x_log10("Days since first data collection") +
-  scale_y_continuous("Proportion of keywords correctly transcribed") +
-  scale_colour_manual("Exposure Condition", 
-                      values = setNames(colors.exposure, levels.exposure)) +
-  theme(legend.position = "bottom")
-ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
-
-d.exp1ab.training %>% 
-  filter(Quintile == 0) %>%
-  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
-  group_by(WorkerID, Condition) %>% 
-  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
-  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
-  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
-  geom_smooth(method = "lm") + 
-  scale_x_log10("Days since first data collection") +
-  scale_y_continuous("Empirical logits of correctly transcribed") +
-  scale_colour_manual("Exposure Condition", 
-                      values = setNames(colors.exposure, levels.exposure)) +
-  theme(legend.position = "bottom")
-ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
-```
-
-
-## Test block
-
-```{r, test across time }
-d.exp1ab.test %>% 
-  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
-  group_by(WorkerID, Condition) %>% 
-  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
-  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
-  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
-  geom_smooth(method = "lm") + 
-  scale_x_log10("Days since first data collection") +
-  scale_y_continuous("Proportion of keywords correctly transcribed") +
-  scale_colour_manual("Exposure Condition", 
-                      values = setNames(colors.exposure, levels.exposure)) +
-  theme(legend.position = "bottom")
-  
-ggsave(filename = "../figures/Change in test performance over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
-
-
-d.exp1ab.test %>% 
-  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
-  group_by(WorkerID, Condition) %>% 
-  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
-  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
-  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
-  geom_smooth(method = "lm") + 
-  scale_x_log10("Days since first data collection") +
-  scale_y_continuous("Empirical logits of correctly transcribed") +
-  scale_colour_manual("Exposure Condition", 
-                      values = setNames(colors.exposure, levels.exposure)) +
-  theme(legend.position = "bottom")
-  
-ggsave(filename = "../figures/Change in test performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
-
-
-```
-
 
 
 
 
 
 \newpage
+# Power analysis (Experiment 1a vs. BB08)
 
-# Meta-analysis - Combined data of Experiments 1a and 1b
-We combine the data from both experiments and then repeats the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability.
-
-```{r, exp1ab.noAdditionalPredictors test block analysis - main level - also plot this}
-d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
-                                  levels = c("1a", "1b"))
-contrasts(d.exp1ab.test$Experiment) = cbind("1a vs. 1b" = c(.5,-.5))
-
-m.exp1ab.noAdditionalPredictors.test.diff <- brm(
-  IsCorrect ~ 
-    offset(individual_training_performance.offset) + Cond.diff + 
-    (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-  data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-  warmup = nsamples.warmup, iter = nsamples.total, 
-  prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff")
-
-# Without any correction
-# m.exp1ab.noAdditionalPredictors.test.diff.woCorrection <- brm(
-#   IsCorrect ~ 
-#     Cond.diff + 
-#     (1 + Cond.diff | Sentence) + (1 | WorkerID),  
-#   data = d.exp1ab.test, family = bernoulli, cores = max.cores, chains = max.cores, 
-#   warmup = nsamples.warmup, iter = nsamples.total, 
-#   prior = my.priors, file = "../models/exp1ab.noAdditionalPredictors.Test.diff.woCorrection")
-
-myGplot.defaults(type = "paper")
-p.test.proportion %+%
-  (d.exp1ab.test %>%
-  group_by(Experiment, WorkerID, Sentence) %>%
-  distinct(.keep_all = TRUE) %>%
-  group_by(Experiment, WorkerID, Condition) %>%
-	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) + 
-  aes(shape = Experiment) + theme(legend.position = "bottom")
-ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
-
-p.test.emplogit %+% 
-  (d.exp1ab.test %>%
-  group_by(Experiment, WorkerID, Sentence) %>%
-  distinct(.keep_all = TRUE) %>%
-  group_by(Experiment, WorkerID, Condition) %>%
-	dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51))) + 
-  aes(shape = Experiment) + theme(legend.position = "bottom")
-ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.emplogit.pdf", device = cairo_pdf, width = 8, height = 4.3, dpi=300)
-```
+For convenience, we provide the result of the power simulations as a data file as part of this git repository. The code in the R markdown document is set up to automatically rerun the power analyses from scratch if that data file is deleted (powersims.RData). On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 10 cores.
 
 
-## Results for Questions 1-3
-```{r plots for Exp 1ab.noAdditionalPredictors, fig.width=8, fig.height=4}
-plot_3effects(m.exp1ab.noAdditionalPredictors.test.diff, "Experiments 1a and 1b", fill = colors.model[1]) 
-ggsave("../figures/exp1ab_Q123_effects.noAdditionalPredictors.pdf", width = 8, height = 3.5)
-
-table_3effects(m.exp1ab.noAdditionalPredictors.test.diff)
-```
-
-## Model summary
-
-```{r, exp1ab.noAdditionalPredictors test block analysis - model output for sliding difference coding, warning=TRUE}
-summary(m.exp1ab.noAdditionalPredictors.test.diff)
-```
-
-## Additional hypothesis testing
-```{r, exp1ab.noAdditionalPredictors test block analysis - hypotheses for sliding difference coding}
-xhypotheses(list(hypothesis(m.exp1ab.noAdditionalPredictors.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
-```
-
-
-
-
-
-
-
-
-
-
-
-
-# Replication analysis
-
-Use the previous data to establish a prior. You may want to construct a normal prior centered at their estimate, with a standard deviation equal to their SD (Martin proposed SE) estimate. Do this for every coefficient. Construct two models, WITHOUT using the ~ syntax. You need to use the target += normal_lpdf(…) syntax. (This is because we will need to compute the marginal likelihood, with all normalizing constants present, and the ~ syntax drops those constants). The first model has the full model, with priors defined in step 1. The second model has the reduced model, with the coefficient of interest implicitly set to zero (as in, it isn’t present). Everything else is the same as in the first model. Estimate both models using the replication data.
-
-```{r, set up replication analysis based on bridge sampling}
-# High number of posterior samples required for bridge_sampling
-nsamples.warmup = 1000
-nsamples.total = nsamples.total.max
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 1: set priors and contrasts
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Let's scale continuous variables to have SD .5 (i.e. divide through 2 SDs) and set mean to maximally 
-# ambiguous continuum step (rather than center). Binary factors should be coded to have level-
-# distance of 1. Then we follow https://github.com/stan-dev/stan/wiki/Prior-Choice-Recommendations 
-# and set the scale of the our t-prior to 2.5
-my.priors = c(
-    # Following Gelman et al (2008) and later revisions on wiki.
-    # First parameter is DFs: smaller means fatter (less normal) tails. As DFs approach, distribution approaches normality
-    # Second parameter is mu: should be 0 to be unbiased
-    # Third parameter is sigma: larger means wider
-    prior(student_t(3,0,2.5), class = b),
-    # 5 is a common choice for logit models. Consider using a stronger prior if convergence is an issue
-    prior(cauchy(0,5), class = sd), 
-    # Uniform prior of correlations
-    prior(lkj(1), class = cor)
-)
-
-d.exp1a.test = d.exp1ab.test %>% filter(Experiment == "1a") %>% defineContrasts()
-d.exp1b.test = d.exp1ab.test %>% filter(Experiment == "1b") %>% defineContrasts()
-```
-
-
-## Questions 1-2 + Talker-specific adaptation
-
-```{r, replication analysis with treatment coding, message=F, warning=F}
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 2: Run model on original data. But with numerically coded variables instead of contrast
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1a.test.treat <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
-    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1a.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.priors, 
-  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.stan", 
-  file = "../models/exp1a.Test.treat.numerical_coded_conditions"
-)
-
-# Let's look at this model
-# stancode(m.exp1a.test.treat)
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 3: Derive priors from original data.
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-model = m.exp1a.test.treat
-p = posterior_samples(model)
-
-
-p %<>%
-  dplyr::select(-starts_with("r_")) %>%
-  dplyr::select(-starts_with("lp_")) %>%
-  summarise_all(
-    .funs = c("mean", "mode", "sd", "se") 
-  ) %>%
-  t() %>%
-  as.data.frame() %>%
-  rownames_to_column(var = "coef") %>%
-  mutate(
-    property = gsub("^.*_([a-z]+)$", "\\1", coef),
-    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
-  ) %>%
-  spread(property, V1) %>%
-  mutate(
-    class = gsub("^([a-z]+)_.*$", "\\1", coef),
-    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
-    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
-    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
-    prior = case_when(
-      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
-      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
+```{r power analysis-functions}
+make_subj_cov = function(SD) {
+  matrix(
+    c(SD^2, rep(0, 15)), 
+    nrow = 4,
+    dimnames = list(
+      c("Intercept", "TS.vs.CNTL", "MT.vs.CNTL", "ST.vs.CNTL"), 
+      c("Intercept", "TS.vs.CNTL", "MT.vs.CNTL", "ST.vs.CNTL")
     )
-  ) %>% 
-  filter(class != "cor") %>%                          # For now removing correlation priors
-  dplyr::select(prior, class, coef, group) %>%
-  mutate(
-    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
-    coef = ifelse(class == "Intercept", "", coef)
   )
-
-my.newpriors = c(
-  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
-  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
-  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
-  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
-  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
-  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
-  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
-  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
-  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
-#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
-  prior(lkj(1), class = cor)
-)
-my.newpriors.woTS.vs.CNTL = my.newpriors[-3,]
-my.newpriors.woMT.vs.CNTL = my.newpriors[-1,]
-my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
-
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.treat.full <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
-    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) +
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.stan", 
-  file = "../models/exp1b.Test.treat.numerical_coded_conditions"
-)
-
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
-#         with one parameter set to 0 (removed). Again use priors based on original data. 
-#         
-#         NB: We're keeping the random effects for the null effect in the model.
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.treat.woTS.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL + 
-    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woTS.vs.CNTL, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.woTS.vs.CNTL.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions"
-)
-m.exp1b.test.treat.woMT.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + 
-    Cond.treatTS.vs.CNTL + Cond.treatST.vs.CNTL + 
-    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woMT.vs.CNTL, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.woMT.vs.CNTL.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions"
-)
-m.exp1b.test.treat.woST.vs.CNTL <- brm(
-  IsCorrect ~ offset(individual_training_performance.offset) + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + 
-    (1 + Cond.treatTS.vs.CNTL + Cond.treatMT.vs.CNTL + Cond.treatST.vs.CNTL | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woST.vs.CNTL, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.woST.vs.CNTL.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions"
-)
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 5: Run the bridge sampler on all new models fit to the replication data
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.rds"
-filename.b2.a = "../models/bridge_exp1b.Test.treat.woTS.vs.CNTL.numerical_coded_conditions.rds"
-filename.b2.b = "../models/bridge_exp1b.Test.treat.woMT.vs.CNTL.numerical_coded_conditions.rds"
-filename.b2.c = "../models/bridge_exp1b.Test.treat.woST.vs.CNTL.numerical_coded_conditions.rds"
-
-if (!file.exists(filename.b1)) {
-  b1 = bridge_sampler(
-    samples = m.exp1b.test.treat.full, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b1, file = filename.b1)
-} else {
-  b1 = readRDS(file = filename.b1)
+  
 }
 
-if (!file.exists(filename.b2.a)) {
-  b2.woTS.vs.CNTL = bridge_sampler(
-    samples = m.exp1b.test.treat.woTS.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woTS.vs.CNTL, file = filename.b2.a)
-} else {
-  b2.woTS.vs.CNTL = readRDS(file = filename.b2.a)
+get_significance = function(d) {
+  with(d, 
+       rbind(
+         round(prop.table(table(TS.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(MT.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(ST.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96)), 3) * 100,
+         round(prop.table(table(MT.vs.ST.z > 1.96)), 3) * 100
+       )[,2])
 }
 
-if (!file.exists(filename.b2.b)) {
-  b2.woMT.vs.CNTL = bridge_sampler(
-    samples = m.exp1b.test.treat.woMT.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woMT.vs.CNTL, file = filename.b2.b)
-} else {
-  b2.woMT.vs.CNTL = readRDS(file = filename.b2.b)
+get_significant_convergence_failure = function(d) {
+  with(d, 
+       rbind(
+         round(prop.table(table(TS.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(MT.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(ST.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96 & ConvergenceFailure.diff)), 3) * 100,
+         round(prop.table(table(MT.vs.ST.z > 1.96 & ConvergenceFailure.diff)), 3) * 100
+       )[,2])
 }
 
-if (!file.exists(filename.b2.c)) {
-  b2.woST.vs.CNTL = bridge_sampler(
-    samples = m.exp1b.test.treat.woST.vs.CNTL, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woST.vs.CNTL, file = filename.b2.c)
-} else {
-  b2.woST.vs.CNTL = readRDS(file = filename.b2.c)
+get_significance_and_convergence = function(d) {
+  paste0(
+    get_significance(d),
+    "\% (",
+    get_significant_convergence_failure(d),
+    "\%)"
+  )
 }
+```
 
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 6: Calculate all the relevant Bayes Factors
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bf(b1, b2.woTS.vs.CNTL)
-bf(b1, b2.woMT.vs.CNTL)
-bf(b1, b2.woST.vs.CNTL)
+```{r power analysis-run}
+# Run simulations if they have not already been stored.
+if (!file.exists("../models/powersims.RData")) {
+  # Treatment-coded data generation
+  e = cbind("Intercept" = 1.71, "TS.vs.CNTL" = .82, "MT.vs.CNTL" = .51, "ST.vs.CNTL" = .30)
+
+  # Make variance-covariance matrices of random effects
+  subj_SD = .65
+  subj.ranef.covar = make_subj_cov(subj_SD)
+  item.sd = c(1.13, .44, .14, .42)
+  item.cor = matrix(
+    c(1, .07, .09, -.24, .07, 1, .4, .63, 
+      .09, 0.4, 1, .27, -.24, .63, .27, 1), 
+    nrow = length(e),
+    dimnames = list(colnames(e), colnames(e))
+  ) 
+  item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
+  
+  my.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  my.BB08.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = c(10, 40, 10, 10), 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  my.half.simulator <- make.data.generator(
+    estimates = e / 2, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  # Don't change order of data generator creation
+  item.sd = item.sd * 2
+  item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
+  subject.ranef.covar = make_subj_cov(subj_SD * 2)
+  
+  my.2var.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  num.sims = 1000
+  n.workers = 12
+  plan(multisession, workers = n.workers)
+
+  tic()
+  d.sim.small = future_replicate(n = num.sims, workers = n.workers,
+                                 expr = fit.models(my.BB08.simulator()), simplify = "matrix")
+  toc()
+  d.sim.small = 
+    data.frame(t(d.sim.small)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  save(d.sim.small, file = "../models/powersims-BB08.RData")
+  
+  tic()
+  d.sim = future_replicate(n = num.sims, workers = n.workers,
+                           expr = fit.models(my.simulator()), simplify = "matrix")
+  toc()
+  d.sim = 
+    data.frame(t(d.sim)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  save(d.sim, file = "../models/powersims-Exp1a.RData")
+  
+  tic()
+  d.sim.half = future_replicate(n = num.sims, workers = n.workers,
+                                expr = fit.models(my.half.simulator()), simplify = "matrix")
+  toc()
+  d.sim.half = 
+    data.frame(t(d.sim.half)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  save(d.sim.half, file = "../models/powersims-Exp1a-half.RData")
+  
+  tic()
+  d.sim.2var = future_replicate(n = num.sims, workers = n.workers,
+                                expr = fit.models(my.2var.simulator()), simplify = "matrix")
+  toc()
+  d.sim.2var = 
+    data.frame(t(d.sim.2var)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  save(d.sim.2var, file = "../models/powersims-Exp1a-2var.RData")
+  
+  # Save power simulations
+  save(d.sim, d.sim.small, d.sim.half, d.sim.2var, file = "../models/powersims.RData", compress = T)
+  
+  # Go back to sequential processing
+  plan(sequential)
+} else {
+  cat("\nLoading existing file with power simulations.\nTo re-run simulations, delete powersims.RData.\n\n")
+  load("../models/powersims.RData")
+}
+```
+
+```{r power analysis-plot}
+# Power = proportion of significant effects in expected direction (for which model also converged)
+k = kable(
+  matrix(cbind(
+    get_significance(d.sim.small),
+    get_significance(d.sim),
+    get_significance(d.sim.2var),
+    get_significance(d.sim.half)
+  ), nrow = 3, ncol = 5, 
+  dimnames = list(
+    c("TS vs. CNTL", "MT vs. CNTL", "ST vs. CNTL", "TS vs. MT", "MT vs. ST"),
+    col.names = c("BB08", "Exp 1", "Exp 1 (2 * \sigma)", "Exp 1 (.5 \beta)")
+  )),
+  format = "latex"
+)
+print(k)
 ```
 
 
 
-## Questions 3
-
-To test replication of Question 3, we are recoding all treatment contrasts so that the multi-talker condition is the baseline. This allows us to assess replication of the treatment effect of the single talker condition, compared to the multi-talker baseline.
-
-```{r, replication analysis with treatment coding for Question 3}
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 2: Run model on original data. But with numerically coded variables instead of contrast
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1a.test.treat.Q3 <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
-    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
-    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1a.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.priors, 
-  save_model = "../models/m.exp1a.test.treat.full.numerically_coded_conditions.Q3.stan", 
-  file = "../models/exp1a.Test.treat.numerical_coded_conditions.Q3"
-)
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 3: Derive priors from original data.
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-model = m.exp1a.test.treat.Q3
-p = posterior_samples(model)
-
-p %<>%
-  dplyr::select(-starts_with("r_")) %>%
-  dplyr::select(-starts_with("lp_")) %>%
-  summarise_all(
-    .funs = c("mean", "mode", "sd", "se") 
-  ) %>%
-  t() %>%
-  as.data.frame() %>%
-  rownames_to_column(var = "coef") %>%
-  mutate(
-    property = gsub("^.*_([a-z]+)$", "\\1", coef),
-    coef = gsub("^(.*)_[a-z]+$", "\\1", coef)
-  ) %>%
-  spread(property, V1) %>%
-  mutate(
-    class = gsub("^([a-z]+)_.*$", "\\1", coef),
-    coef = gsub("^[a-z]+_(.*)$", "\\1", coef),
-    group = ifelse(gsub("^([A-Za-z]+)__.*$", "\\1", coef) %in% c("Sentence", "WorkerID"), gsub("^([A-Za-z]+)__.*$", "\\1", coef), ""),
-    coef = gsub("^[A-Za-z]+__(.*)$", "\\1", coef),
-    prior = case_when(
-      class == "b" ~ paste0("normal(", mean, ",", sd, ")"),
-      class == "sd" ~ paste0("normal(", mean, ",", sd, ")")
-    )
-  ) %>% 
-  filter(class != "cor") %>%                          # For now removing correlation priors
-  dplyr::select(prior, class, coef, group) %>%
-  mutate(
-    class = ifelse(coef == "Intercept" & class == "b", "Intercept", class),
-    coef = ifelse(class == "Intercept", "", coef)
-  )
-
-my.newpriors.ST.vs.MT = c(
-  set_prior(p[1,"prior"], class = p[1,"class"], coef = p[1,"coef"], group = p[1,"group"]),
-  set_prior(p[2,"prior"], class = p[2,"class"], coef = p[2,"coef"], group = p[2,"group"]),
-  set_prior(p[3,"prior"], class = p[3,"class"], coef = p[3,"coef"], group = p[3,"group"]),
-  set_prior(p[4,"prior"], class = p[4,"class"], coef = p[4,"coef"], group = p[4,"group"]),
-  set_prior(p[5,"prior"], class = p[5,"class"], coef = p[5,"coef"], group = p[5,"group"]),
-  set_prior(p[6,"prior"], class = p[6,"class"], coef = p[6,"coef"], group = p[6,"group"]),
-  set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
-  set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
-  set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
-  prior(lkj(1), class = cor)
-)
-my.newpriors.woST.vs.MT = my.newpriors.ST.vs.MT[-2,]
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 4: Run same numerically-coded model on new data, but with priors based on original data  
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.treat.full.Q3 <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
-    Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT + 
-    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) +
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.ST.vs.MT, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.full.numerically_coded_conditions.Q3.stan", 
-  file = "../models/exp1b.Test.treat.numerical_coded_conditions.Q3"
-)
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 4: Run all three 'nullmodels' -- i.e. the same numerically-coded model on new data, but 
-#         with one parameter set to 0 (removed). Again use priors based on original data. 
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-m.exp1b.test.treat.woST.vs.MT <- brm(
-  IsCorrect ~ offset(individual_training_performance.linear) + 
-    Cond.treatTS.vs.MT + Cond.treatCNTL.vs.MT + 
-    (1 + Cond.treatTS.vs.MT + Cond.treatST.vs.MT + Cond.treatCNTL.vs.MT | Sentence) + 
-    (1 | WorkerID),  
-  data = d.exp1b.test, family = bernoulli, 
-  iter = nsamples.total, warmup = nsamples.warmup, 
-  chains = max.cores, cores = max.cores,
-  prior = my.newpriors.woST.vs.MT, save_all_pars = T, 
-  save_model = "../models/m.exp1b.test.treat.woST.vs.MT.numerically_coded_conditions.stan",
-  file = "../models/exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions"
-)
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 5: Run the bridge sampler on all new models fit to the replication data
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-filename.b1 = "../models/bridge_exp1b.Test.treat.numerical_coded_conditions.Q3.rds"
-filename.b2.a = "../models/bridge_exp1b.Test.treat.woST.vs.MT.numerical_coded_conditions.rds"
-
-if (!file.exists(filename.b1)) {
-  b1 = bridge_sampler(
-    samples = m.exp1b.test.treat.full.Q3, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b1, file = filename.b1)
-} else {
-  b1 = readRDS(file = filename.b1)
-}
-
-if (!file.exists(filename.b2.a)) {
-  b2.woST.vs.MT = bridge_sampler(
-    samples = m.exp1b.test.treat.woST.vs.MT, cores = 8, method = "warp3", maxiter = 1000)
-  saveRDS(b2.woST.vs.MT, file = filename.b2.a)
-} else {
-  b2.woST.vs.MT = readRDS(file = filename.b2.a)
-}
-
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Step 6: Calculate all the relevant Bayes Factors
-## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bf(b1, b2.woST.vs.MT)
-```
 
 
-# Similarity-based analysis
+
+\newpage
+# Similarity-based analysis (Experiments 1a and 1b)
 ```{r}
 load("../data/Talker-similarity.RData")
 ```
@@ -2617,6 +2736,89 @@ xhypothesis(hypothesis(m.exp1b.objective_similarity.ST, "accuracy_logit > 0"))
 
 
 
+
+
+
+\newpage
+# Do results depend on when participant completed experiment? (Experiments 1a and 1b)
+
+Experiments 1a and 1b were run at different times, almost 2 years apart. In both case, we recruited an initial number of participants and then completed to fill up lists until the pre-specified number of participants per condition was reached. This left us with data from participants that had taken the experiment at different times.
+
+## Exposure block
+
+```{r, training across time}
+# DaysSinceFirst is set so that 1 means first day. (so 'days since start of experiment')
+myGplot.defaults(type = "paper")
+
+# Training performance
+d.exp1ab.training %>% 
+  filter(Quintile == 0) %>%
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition) %>% 
+  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Proportion of keywords correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+d.exp1ab.training %>% 
+  filter(Quintile == 0) %>%
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition) %>% 
+  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Empirical logits of correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+ggsave(filename = "../figures/Change in exposure performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+```
+
+
+## Test block
+
+```{r, test across time }
+d.exp1ab.test %>% 
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition) %>% 
+  dplyr::summarise(Correct = mean(IsCorrect), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Proportion of keywords correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+  
+ggsave(filename = "../figures/Change in test performance over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+
+d.exp1ab.test %>% 
+  mutate(DateDay = as_datetime(assignmentsubmittime), DaysSinceFirst = (DateDay - min(DateDay) + 1) %/% ddays(1)) %>% 
+  group_by(WorkerID, Condition) %>% 
+  dplyr::summarise(Correct = emplog(mean(IsCorrect), 51), days = first(DaysSinceFirst)) %>% 
+  ggplot(aes(x = days + 1, y= Correct, color = Condition)) + 
+  stat_summary(fun.data = mean_cl_boot, geom= "pointrange", alpha = .8, size = .5) + 
+  geom_smooth(method = "lm") + 
+  scale_x_log10("Days since first data collection") +
+  scale_y_continuous("Empirical logits of correctly transcribed") +
+  scale_colour_manual("Exposure Condition", 
+                      values = setNames(colors.exposure, levels.exposure)) +
+  theme(legend.position = "bottom")
+  
+ggsave(filename = "../figures/Change in test performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
+
+
+```
 
 
 

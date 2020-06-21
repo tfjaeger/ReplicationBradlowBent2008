@@ -3,165 +3,184 @@ library(tictoc)
 library(mvtnorm)
 library(foreach)
 library(doParallel)
+library(future.apply)
 
 source("../scripts/functions.R")
 
-e = cbind("Intercept" = 2.07, "TS.vs.MT" = .33, "MT.vs.ST" = .16, "ST.vs.CNTL" = .33)
-item.sd = c(1.1, .26, .22, .4)
-item.cor = matrix(
-   c(1, .17, .2, 0, .17, 1, -.29, .54, .2, -.29, 1, -.53, 0, .54, -.53, 1), 
-   nrow = length(e),
-   dimnames = list(colnames(e), colnames(e))
-)
-item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
-
-my.simulator <- make.data.generator(
-  estimates = e, 
-  n.subj.perCondition = 80, 
-  n.obs = 51, # Include all five blocks of 7 stims during Test block
-  subject.ranef.covar = matrix(
-    c(.58^2, rep(0, length(e)**2-1)), 
-    nrow = length(e),
-    dimnames = list(colnames(e), colnames(e))
-  ),
-  item.ranef.covar = item.ranef.covar
-)
-
-my.small.simulator <- make.data.generator(
-  estimates = e, 
-  n.subj.perCondition = 10, 
-  n.obs = 51, # Include all five blocks of 7 stims during Test block
-  subject.ranef.covar = matrix(
-    c(.58^2, rep(0, length(e)**2-1)), 
-    nrow = length(e),
-    dimnames = list(colnames(e), colnames(e))
-  ),
-  item.ranef.covar = item.ranef.covar
-)
-
-my.half.simulator <- make.data.generator(
-  estimates = cbind("Intercept" = 2.07, "TS.vs.MT" = .165, "MT.vs.ST" = .08, "ST.vs.CNTL" = .165), 
-  n.subj.perCondition = 80, 
-  n.obs = 51, # Include all five blocks of 7 stims during Test block
-  subject.ranef.covar = matrix(
-    c(.58^2, rep(0, 15)), 
+make_subj_cov = function(SD) {
+  matrix(
+    c(SD^2, rep(0, 15)), 
     nrow = 4,
     dimnames = list(
-      c("Intercept", "TS.vs.MT", "MT.vs.ST", "ST.vs.CNTL"), 
-      c("Intercept", "TS.vs.MT", "MT.vs.ST", "ST.vs.CNTL")
+      c("Intercept", "TS.vs.CNTL", "MT.vs.CNTL", "ST.vs.CNTL"), 
+      c("Intercept", "TS.vs.CNTL", "MT.vs.CNTL", "ST.vs.CNTL")
     )
-  ),
-  item.ranef.covar = item.ranef.covar
-)
+  )
+  
+}
 
-item.sd = (c(1.1, .26, .22, .4)^2*2)^.5
-item.cor = matrix(
-  c(1, .17, .2, 0, .17, 1, -.29, .54, .2, -.29, 1, -.53, 0, .54, -.53, 1), 
-  nrow = length(e),
-  dimnames = list(colnames(e), colnames(e))
-)
-item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
-my.2var.simulator <- make.data.generator(
-  estimates = cbind("Intercept" = 2.07, "TS.vs.MT" = .33, "MT.vs.ST" = .16, "ST.vs.CNTL" = .33), 
-  n.subj.perCondition = 80, 
-  n.obs = 51, # Include all five blocks of 7 stims during Test block
-  subject.ranef.covar = matrix(
-    c((.58^2)*2, rep(0, 15)), 
-    nrow = 4,
-    dimnames = list(
-      c("Intercept", "TS.vs.MT", "MT.vs.ST", "ST.vs.CNTL"), 
-      c("Intercept", "TS.vs.MT", "MT.vs.ST", "ST.vs.CNTL")
-    )
-  ),
-  item.ranef.covar = item.ranef.covar
-)
+get_significance = function(d) {
+  with(d, 
+       rbind(
+         round(prop.table(table(TS.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(MT.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(ST.vs.CNTL.z > 1.96)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96)), 3) * 100,
+         round(prop.table(table(MT.vs.ST.z > 1.96)), 3) * 100
+       )[,2])
+}
 
-#library(doSNOW)
-# registerDoSNOW(cl)
-# pb <- txtProgressBar(max = num.sims, style = 3)
-# progress <- function(n) setTxtProgressBar(pb, n)
-# opts <- list(progress = progress)
+get_significant_convergence_failure = function(d) {
+  with(d, 
+       rbind(
+         round(prop.table(table(TS.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(MT.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(ST.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96 & ConvergenceFailure.diff)), 3) * 100,
+         round(prop.table(table(MT.vs.ST.z > 1.96 & ConvergenceFailure.diff)), 3) * 100
+       )[,2])
+}
 
-# Initiate cluster
-# cl<-parallel::makeCluster(10)
-# doParallel::registerDoParallel(cl)
-# num.sims = 1000
-# 
-# tic()
-# d.sim.small = foreach(n = 1:num.sims,
-#         .verbose = T,
-#         .combine = rbind,
-#         .final = as.data.frame,
-#         .packages = c("mvtnorm")) %dopar% fit.models(my.small.simulator())
-#           
-# toc()
-# parallel::stopCluster(cl)
-
-library(future.apply)
-plan(multiprocess)
-d.sim = future_replicate(n = num.sims, workers = 10,
-                expr = fit.models(my.simulator()), simplify = "matrix")
-d.sim = data.frame(t(d.sim))
-
-d.sim.half = future_replicate(n = num.sims, workers = 10,
-                         expr = fit.models(my.half.simulator()), simplify = "matrix")
-d.sim.half = data.frame(t(d.sim.half))
-
-d.sim.2var = future_replicate(n = num.sims, workers = 10,
-                              expr = fit.models(my.2var.simulator()), simplify = "matrix")
-d.sim.2var = data.frame(t(d.sim.2var))
-saveRDS(list(d.sim, d.sim.small, d.sim.half, d.sim.2var), "../models/powersims.RDS", compress = T)
+get_significance_and_convergence = function(d) {
+  paste0(
+    get_significance(d),
+    "\% (",
+    get_significant_convergence_failure(d),
+    "\%)"
+  )
+}
 
 
-l = readRDS("../models/powersims.RDS")
-d.sim = l[[1]]
-d.sim.small = l[[2]]
-d.sim.half = l[[3]]
-d.sim.2var = l[[4]]
+# Run simulations if they have not already been stored.
+if (!file.exists("../models/powersims.RData")) {
+  # Treatment-coded data generation
+  e = cbind("Intercept" = 1.71, "TS.vs.CNTL" = .82, "MT.vs.CNTL" = .51, "ST.vs.CNTL" = .30)
 
-summary(d.sim)
-summary(d.sim.small)
-summary(d.sim.half)
-summary(d.sim.2var)
+  # Make variance-covariance matrices of random effects
+  subj_SD = .65
+  subj.ranef.covar = make_subj_cov(subj_SD)
+  item.sd = c(1.13, .44, .14, .42)
+  item.cor = matrix(
+    c(1, .07, .09, -.24, .07, 1, .4, .63, 
+      .09, 0.4, 1, .27, -.24, .63, .27, 1), 
+    nrow = length(e),
+    dimnames = list(colnames(e), colnames(e))
+  ) 
+  item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
+  
+  my.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  my.BB08.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = c(10, 40, 10, 10), 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  my.half.simulator <- make.data.generator(
+    estimates = e / 2, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  # Don't change order of data generator creation
+  item.sd = item.sd * 2
+  item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
+  subject.ranef.covar = make_subj_cov(subj_SD * 2)
+  
+  my.2var.simulator <- make.data.generator(
+    estimates = e, 
+    n.subj.perCondition = 80, 
+    n.obs = 51, 
+    subject.ranef.covar = subj.ranef.covar,
+    item.ranef.covar = item.ranef.covar
+  )
+  
+  num.sims = 1000
+  n.workers = 12
+  plan(multisession, workers = n.workers)
 
-# Power = proportion of "true" (significant effects)
+  tic()
+  d.sim.small = future_replicate(n = num.sims, workers = n.workers,
+                                 expr = fit.models(my.BB08.simulator()), simplify = "matrix")
+  toc()
+  d.sim.small = 
+    data.frame(t(d.sim.small)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  
+  tic()
+  d.sim = future_replicate(n = num.sims, workers = n.workers,
+                           expr = fit.models(my.simulator()), simplify = "matrix")
+  toc()
+  d.sim = 
+    data.frame(t(d.sim)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  
+  tic()
+  d.sim.half = future_replicate(n = num.sims, workers = n.workers,
+                                expr = fit.models(my.half.simulator()), simplify = "matrix")
+  toc()
+  d.sim.half = 
+    data.frame(t(d.sim.half)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  
+  tic()
+  d.sim.2var = future_replicate(n = num.sims, workers = n.workers,
+                                expr = fit.models(my.2var.simulator()), simplify = "matrix")
+  toc()
+  d.sim.2var = 
+    data.frame(t(d.sim.2var)) %>% 
+    as_tibble() %>% 
+    mutate_all(.funs = unlist)
+  
+  # Save power simulations
+  save(d.sim, d.sim.small, d.sim.half, d.sim.2var, file = "../models/powersims.RData", compress = T)
+  
+  # Go back to sequential processing
+  plan(sequential)
+} else {
+  cat("\nLoading existing file with power simulations.\nTo re-run simulations, delete powersims.RData.\n\n")
+  load("../models/powersims.RData")
+}
+
+# Power = proportion of significant effects in expected direction (for which model also converged)
 library(knitr)
 k = kable(
   matrix(cbind(
-    rbind(
-      round(prop.table(table(d.sim.small$TS.vs.MT.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.small$MT.vs.ST.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.small$ST.vs.CNTL.z > 1.96)), 3) * 100
-    )[,2],
-    rbind(
-      round(prop.table(table(d.sim$TS.vs.MT.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim$MT.vs.ST.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim$ST.vs.CNTL.z > 1.96)), 3) * 100
-    )[,2],
-    rbind(
-      round(prop.table(table(d.sim.half$TS.vs.MT.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.half$MT.vs.ST.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.half$ST.vs.CNTL.z > 1.96)), 3) * 100
-    )[,2],
-    rbind(
-      round(prop.table(table(d.sim.2var$TS.vs.MT.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.2var$MT.vs.ST.z > 1.96)), 3) * 100,
-      round(prop.table(table(d.sim.2var$ST.vs.CNTL.z > 1.96)), 3) * 100
-    )[,2]
-  ), nrow = 3, ncol = 4, 
+    get_significance(d.sim.small),
+    get_significance(d.sim),
+    get_significance(d.sim.2var),
+    get_significance(d.sim.half)
+  ), nrow = 3, ncol = 5, 
   dimnames = list(
-    c("TS vs. MT", "MT vs. ST", "ST vs. CNTL"),
-    col.names = c("BB08", "Exp 1", "Exp 1 (.5 \beta)", "Exp 1 (2* sigma)")
+    c("TS vs. CNTL", "MT vs. CNTL", "ST vs. CNTL", "TS vs. MT", "MT vs. ST"),
+    col.names = c("BB08", "Exp 1", "Exp 1 (2 * \sigma)", "Exp 1 (.5 \beta)")
   )),
   format = "latex"
 )
+k
+
+
+
 ## ----------------------------------------------------------------------------
 #
 # PLOTS
 #
 ## ----------------------------------------------------------------------------
 myGplot.defaults(type = "paper")
-ggplot(d.sim, 
+ggplot(d.sim %>% as_tibble() %>% mutate_all(.funs = unlist), 
        aes(x = TS.vs.MT.z, y = MT.vs.ST.z)) +
   geom_vline(xintercept = c(-1.96, 1.96), color = "red", linetype = 2) +
   geom_hline(yintercept = c(-1.96, 1.96), color = "red", linetype = 2) +
@@ -179,7 +198,7 @@ ggplot(d.sim,
 ggsave("figures/power.pdf", height = 4, width = 4)
 
 
-ggplot(d.sim, 
+ggplot(d.sim %>% as_tibble() %>% mutate_all(.funs = unlist), 
        aes(x = TS.vs.MT.estimate, y = MT.vs.ST.estimate)) +
   geom_point(aes(shape = ifelse(abs(TS.vs.MT.z) > 1.96 & abs(MT.vs.ST.z) > 1.96, "yes", "no"),
                  alpha = ifelse(abs(TS.vs.MT.z) > 1.96 & abs(MT.vs.ST.z) > 1.96, 1, .7))) +

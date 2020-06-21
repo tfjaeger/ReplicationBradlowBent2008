@@ -9,9 +9,8 @@
 # and perverted by countless other researchers.
 make.data.generator <- function(
   estimates = cbind("Intercept" = 0, "TS.vs.MT" = 0, "MT.vs.ST" = 0, "ST.vs.CNTL" = 0), 
-  n.subj.perCondition = 80,
-  n.subj = n.subj.perCondition * ncond, # Total number of subjects (for between subject design)
-  n.obs = 16,                        # Number of items per subject
+  n.subj.perCondition = 80,             # can be vector of same length as conditions
+  n.obs = 16,                           # Number of items per subject
   subject.ranef.covar = matrix(
     rep(0, length(estimates)**2), 
     nrow = length(estimates),
@@ -21,48 +20,66 @@ make.data.generator <- function(
     rep(0, length(estimates)**2), 
     nrow = length(estimates),
     dimnames = list(colnames(estimates), colnames(estimates))
-  )
+  ),
+  cond.labels = c("Control", "Single talker", "Multi-talker", "Talker-specific")
 ) {
   require(mvtnorm)
   require(magrittr)
   require(dplyr)
   
-  ncond = length(estimates)
-  n = n.obs * n.subj 
-  d = expand.grid(Subject = 1:n.subj,
+  if (length(n.subj.perCondition) == 1) n.subj.perCondition = rep(n.subj.perCondition, 4)
+  n.subj = if (length(n.subj.perCondition) == 1) 
+    n.subj.perCondition * length(estimates) else sum(n.subj.perCondition)
+  
+  cat(paste0("Data generator for: ", paste(paste(cond.labels, 
+                                  n.subj.perCondition, sep = "--"), collapse = "; ")))
+
+  d = 
+    expand.grid(Subject = 1:n.subj.perCondition[1],
                   Item = 1:n.obs,
-                  Intercept = 1)
-  d = d[order(d$Subject),]
-  d$Cond = factor(
-    sort(rep(
-      c("Control", "Single talker", "Multi-talker", "Talker-specific"),
-      n / ncond)),
-    levels = c("Talker-specific", "Multi-talker", "Single talker", "Control"))
-  contrasts(d$Cond) = cbind("TS.vs.MT" = c(3/4, -1/4, -1/4, -1/4),
-                            "MT.vs.ST" = c(1/2, 1/2, -1/2, -1/2),
-                            "ST.vs.CNTL" = c(1/4, 1/4, 1/4, -3/4))
+                  Intercept = 1) %>%
+    mutate(Cond = cond.labels[1]) %>%
+    rbind(
+      expand.grid(Subject = (n.subj.perCondition[1] + 1):(n.subj.perCondition[1] + n.subj.perCondition[2]),
+                  Item = 1:n.obs,
+                  Intercept = 1) %>%
+        mutate(Cond = cond.labels[2])) %>%
+    rbind(
+      expand.grid(Subject = (n.subj.perCondition[2] + 1):(n.subj.perCondition[2] + n.subj.perCondition[3]),
+                  Item = 1:n.obs,
+                  Intercept = 1) %>%
+        mutate(Cond = cond.labels[3])) %>%
+    rbind(
+      expand.grid(Subject = (n.subj.perCondition[3] + 1):(n.subj.perCondition[3] + n.subj.perCondition[4]),
+                  Item = 1:n.obs,
+                  Intercept = 1) %>%
+        mutate(Cond = cond.labels[4])) %>%
+    mutate(Cond = factor(Cond,
+      levels = cond.labels))
   
   d %<>%
     mutate(
-      TS.vs.MT = case_when(
-        Cond == "Talker-specific" ~ 3/4,
-        Cond == "Multi-talker" ~ -1/4,
-        Cond == "Single talker" ~ -1/4,
-        T ~ -1/4
+      TS.vs.CNTL = case_when(
+        Cond == "Talker-specific" ~ 1,
+        Cond == "Multi-talker" ~ 0,
+        Cond == "Single talker" ~ 0,
+        T ~ 0
       ),
-      MT.vs.ST = case_when(
-        Cond == "Talker-specific" ~ 1/2,
-        Cond == "Multi-talker" ~ 1/2,
-        Cond == "Single talker" ~ -1/2,
-        T ~ -1/2
+      MT.vs.CNTL = case_when(
+        Cond == "Talker-specific" ~ 0,
+        Cond == "Multi-talker" ~ 1,
+        Cond == "Single talker" ~ 0,
+        T ~ 0
       ),
       ST.vs.CNTL = case_when(
-        Cond == "Talker-specific" ~ 1/4,
-        Cond == "Multi-talker" ~ 1/4,
-        Cond == "Single talker" ~ 1/4,
-        T ~ -3/4
+        Cond == "Talker-specific" ~ 0,
+        Cond == "Multi-talker" ~ 0,
+        Cond == "Single talker" ~ 1,
+        T ~ 0
       )
     )
+  
+  n = nrow(d)
   
   generate.data <- function() {
     if (all(dim(item.ranef.covar) == 1)) {
@@ -80,7 +97,7 @@ make.data.generator <- function(
     }
     names(subject.adjustment) <- colnames(subject.ranef.covar)
     subject.adjustment$Subject <- 1:n.subj
-
+    
     d$y <- rowSums(d[,colnames(estimates)] * (
       matrix(
         rep(as.numeric(estimates), n),
@@ -90,10 +107,10 @@ make.data.generator <- function(
         item.adjustment[d$Item, colnames(estimates)] + 
         subject.adjustment[d$Subject, colnames(estimates)]
     ))
-    d$Item = factor(d$Item)
-    d$Subject = factor(d$Subject)
     
-    d$Outcome = sapply(d$y, FUN = function(x) { rbinom(1,1,plogis(x))})
+    d %<>%
+      mutate_at(vars(Subject, Item), factor) %>%
+      mutate(Outcome = rbinom(length(y), 1, plogis(y)))
     
     return(d)
   }
@@ -106,25 +123,49 @@ make.data.generator <- function(
 fit.models <- function(d.sim) {
   require(lme4)
   
-  m.tmp <- glmer(Outcome ~ 1 + Cond + 
-                   (1 | Subject) + (1 + Cond | Item), # only by-subject intercepts; no item random effects 
-                 d.sim, 
-                 family = "binomial")
-  m.tmp.coef <- coef(summary(m.tmp))
+  # difference-coded model
+  contrasts(d.sim$Cond) = cbind(
+    "TS.vs.MT" = c(-1/4, -1/4, -1/4, 3/4),
+    "MT.vs.ST" = c(-1/2, -1/2, 1/2, 1/2),
+    "ST.vs.CNTL" = c(-3/4, 1/4, 1/4, 1/4)) 
+  m.diff <- glmer(
+    Outcome ~ 1 + Cond + 
+      (1 | Subject) + (1 + Cond | Item),
+    data = d.sim, 
+    family = "binomial")
+  m.diff.coef <- coef(summary(m.diff))
+  
+  # treatement-coded model
+  contrasts(d.sim$Cond) = cbind(
+    "TS.vs.CNTL" = c(0, 0, 0, 1),
+    "MT.vs.CNTL" = c(0, 0, 1, 0),
+    "ST.vs.CNTL" = c(0, 1, 0, 0)) 
+  m.treat <- glmer(
+    Outcome ~ 1 + Cond + 
+      (1 | Subject) + (1 + Cond | Item), 
+    data = d.sim, 
+    family = "binomial")
+  m.treat.coef <- coef(summary(m.treat))
   
   simulation <- data.frame(
-    Int.estimate = m.tmp.coef[1,1],
-    Int.z = m.tmp.coef[1,3],
-    TS.vs.MT.estimate = m.tmp.coef[2,1],
-    TS.vs.MT.z = m.tmp.coef[2,3],
-    MT.vs.ST.estimate = m.tmp.coef[3,1],
-    MT.vs.ST.z = m.tmp.coef[3,3],
-    ST.vs.CNTL.estimate = m.tmp.coef[4,1],
-    ST.vs.CNTL.z = m.tmp.coef[4,3],
-    Subj.sd = VarCorr(m.tmp)[[1]][1]^.5,
-    Item.sd = VarCorr(m.tmp)[[2]][1]^.5,
-    ConvergenceFailure = any(grepl("failed to converge", m.tmp@optinfo$conv$lme4$messages)),
-    IsSingular = isSingular(m.tmp),
+    TS.vs.MT.estimate = m.diff.coef[2,1],
+    TS.vs.MT.z = m.diff.coef[2,3],
+    MT.vs.ST.estimate = m.diff.coef[3,1],
+    MT.vs.ST.z = m.diff.coef[3,3],
+    TS.vs.CNTL.estimate = m.treat.coef[2,1],
+    TS.vs.CNTL.z = m.treat.coef[2,3],
+    MT.vs.CNTL.estimate = m.treat.coef[3,1],
+    MT.vs.CNTL.z = m.treat.coef[3,3],
+    ST.vs.CNTL.estimate = m.treat.coef[4,1],
+    ST.vs.CNTL.z = m.treat.coef[4,3],
+    Subj.sd.diff = VarCorr(m.diff)[[1]][1]^.5,
+    Subj.sd.treat= VarCorr(m.treat)[[1]][1]^.5,
+    Item.sd.diff = VarCorr(m.diff)[[2]][1]^.5,
+    Item.sd.treat = VarCorr(m.treat)[[2]][1]^.5,
+    ConvergenceFailure.diff = any(grepl("failed to converge", m.diff@optinfo$conv$lme4$messages)),
+    ConvergenceFailure.treat = any(grepl("failed to converge", m.treat@optinfo$conv$lme4$messages)),
+    IsSingular.diff = isSingular(m.diff),
+    IsSingular.treat = isSingular(m.treat),
     n.subj = length(unique(d.sim$Subject)),
     n.item = length(unique(d.sim$Item))
   )

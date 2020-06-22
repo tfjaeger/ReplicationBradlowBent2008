@@ -2238,8 +2238,8 @@ get_significance = function(d) {
          round(prop.table(table(TS.vs.CNTL.z > 1.96)), 3) * 100,
          round(prop.table(table(MT.vs.CNTL.z > 1.96)), 3) * 100,
          round(prop.table(table(ST.vs.CNTL.z > 1.96)), 3) * 100,
-         round(prop.table(table(TS.vs.MT.z > 1.96)), 3) * 100,
-         round(prop.table(table(MT.vs.ST.z > 1.96)), 3) * 100
+         round(prop.table(table(MT.vs.ST.z > 1.96)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96)), 3) * 100
        )[,2])
 }
 
@@ -2249,17 +2249,17 @@ get_significant_convergence_failure = function(d) {
          round(prop.table(table(TS.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
          round(prop.table(table(MT.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
          round(prop.table(table(ST.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
-         round(prop.table(table(TS.vs.MT.z > 1.96 & ConvergenceFailure.diff)), 3) * 100,
-         round(prop.table(table(MT.vs.ST.z > 1.96 & ConvergenceFailure.diff)), 3) * 100
+         round(prop.table(table(MT.vs.ST.z > 1.96 & ConvergenceFailure.diff)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96 & ConvergenceFailure.diff)), 3) * 100
        )[,2])
 }
 
 get_significance_and_convergence = function(d) {
   paste0(
     get_significance(d),
-    "\% (",
+    "% (",
     get_significant_convergence_failure(d),
-    "\%)"
+    "%)"
   )
 }
 ```
@@ -2376,19 +2376,21 @@ if (!file.exists("../models/powersims.RData")) {
 
 ```{r power analysis-plot}
 # Power = proportion of significant effects in expected direction (for which model also converged)
+library(knitr)
 k = kable(
   matrix(cbind(
-    get_significance(d.sim.small),
-    get_significance(d.sim),
-    get_significance(d.sim.2var),
-    get_significance(d.sim.half)
-  ), nrow = 3, ncol = 5, 
+    get_significance_and_convergence(d.sim.small),
+    get_significance_and_convergence(d.sim),
+    get_significance_and_convergence(d.sim.2var),
+    get_significance_and_convergence(d.sim.half)
+  ), nrow = 5, ncol = 4, 
   dimnames = list(
-    c("TS vs. CNTL", "MT vs. CNTL", "ST vs. CNTL", "TS vs. MT", "MT vs. ST"),
-    col.names = c("BB08", "Exp 1", "Exp 1 (2 * \sigma)", "Exp 1 (.5 \beta)")
+    c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST", "TS vs. MT"),
+    col.names = c("BB08", "Exp 1", "Exp 1 (2 * sigma)", "Exp 1 (.5 beta)")
   )),
   format = "latex"
 )
+
 print(k)
 ```
 

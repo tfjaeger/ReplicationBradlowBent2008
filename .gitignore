@@ -5,3 +5,5 @@
 *.pdf
 *.rds
 *.DS_Store
+*.Rapp.history
+*.Rproj

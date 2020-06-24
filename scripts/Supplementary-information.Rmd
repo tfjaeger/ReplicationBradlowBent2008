@@ -2215,9 +2215,11 @@ summary(m.exp1b.test.diff.wExposure_crossed_with_TestTalker)
 \newpage
 # Power analysis (Experiment 1a vs. BB08)
 
-For convenience, we provide the result of the power simulations as a data file as part of this git repository. The code in the R markdown document is set up to automatically rerun the power analyses from scratch if that data file is deleted (powersims.RData). On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 10 cores.
+For convenience, we provide the result of the power simulations as a data file as part of this git repository. The code in the R markdown document is set up to automatically rerun the power analyses from scratch if that data file is deleted (powersims.RData). 
 
+In order to estimate the power for Questions 1-3 (and talker-specific adaptation, for the sake of comparison), each simulation fit both a model with sliding difference coding for exposure condition, and a model with treatment-coding for condition (see code in R markdown). This means that the three simulations presented below required 4 * 1000 * 2 = 8000 GLMM fits. On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 10 cores. All three simulations together took about 2 days to complete.
 
+When models did not converge, we report so below, rather than to refit the model with reduced random effect structure.
 
 ```{r power analysis-functions}
 make_subj_cov = function(SD) {
@@ -2243,6 +2245,17 @@ get_significance = function(d) {
        )[,2])
 }
 
+get_convergence = function(d) {
+  with(d, 
+       rbind(
+         round(prop.table(table(!ConvergenceFailure.treat)), 2) * 100,
+         round(prop.table(table(!ConvergenceFailure.treat)), 2) * 100,
+         round(prop.table(table(!ConvergenceFailure.treat)), 2) * 100,
+         round(prop.table(table(!ConvergenceFailure.diff)), 2) * 100,
+         round(prop.table(table(!ConvergenceFailure.diff)), 2) * 100
+       )[,2])
+}
+
 get_significant_wo_convergence_failure = function(d) {
   with(d, 
        rbind(
@@ -2258,7 +2271,7 @@ get_significance_and_convergence = function(d) {
   paste0(
     get_significant_wo_convergence_failure(d),
     "% (",
-    get_significance(d),
+    get_convergence(d),
     "%)"
   )
 }
@@ -2387,7 +2400,7 @@ kable(
     c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST", "TS vs. MT"),
     col.names = c("BB08", "Exp 1", "Exp 1 (2 * sigma)", "Exp 1 (.5 beta)")
   )),
-  caption = "Percentage of simulations that found the correct (ground truth) effect. Numbers in parentheses show power when only converged models are counted. Numbers outside of parentheses show power when both converged and non-converged models are counted. In practice non-converged models would be refit with reduced random effect structure, until a random effect structure is found that yields convergence."
+  caption = "Percentage of simulations that converged and found the correct (ground truth) effect. Parentheses show percentage of models that converged (regardless of whether the correctly detected the effect. In practice non-converged models would be refit with reduced random effect structure, until a random effect structure is found that yields convergence. Note that the number of converged models is identical for all effects from the same model: talker-specific adaptation and Questions 1-2 are based on the treatment-coded GLMM, the other effects on the sliding difference-coded GLMM."
 )
 
 

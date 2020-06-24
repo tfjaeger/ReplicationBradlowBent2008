@@ -2389,7 +2389,12 @@ kable(
   ))
 )
 
-k = kable(
+
+# Wrap sink into single expression to make it work, since knitr already uses sink()
+# see https://groups.google.com/forum/#!topic/knitr/TCz9vNLlslY
+{
+  sink(file = "../tables/table_power_sim.tex")
+  print(kable(
   matrix(cbind(
     get_significance_and_convergence(d.sim.small),
     get_significance_and_convergence(d.sim),
@@ -2400,12 +2405,10 @@ k = kable(
     c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST", "TS vs. MT"),
     col.names = c("BB08", "Exp 1", "Exp 1 (2 * sigma)", "Exp 1 (.5 beta)")
   )),
-  format = "latex"
-)
-
-sink("../tables/table_power_sim.tex")
-print(k)
-sink()
+  format = "latex",
+))
+  sink()
+}
 ```
 
 

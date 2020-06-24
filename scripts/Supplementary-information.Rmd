@@ -2376,7 +2376,6 @@ if (!file.exists("../models/powersims.RData")) {
 
 ```{r power analysis-plot}
 # Power = proportion of significant effects in expected direction (for which model also converged)
-library(knitr)
 k = kable(
   matrix(cbind(
     get_significance_and_convergence(d.sim.small),

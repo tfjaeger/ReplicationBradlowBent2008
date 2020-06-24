@@ -2243,14 +2243,14 @@ get_significance = function(d) {
        )[,2])
 }
 
-get_significant_convergence_failure = function(d) {
+get_significant_wo_convergence_failure = function(d) {
   with(d, 
        rbind(
-         round(prop.table(table(TS.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
-         round(prop.table(table(MT.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
-         round(prop.table(table(ST.vs.CNTL.z > 1.96 & ConvergenceFailure.treat)), 3) * 100,
-         round(prop.table(table(MT.vs.ST.z > 1.96 & ConvergenceFailure.diff)), 3) * 100,
-         round(prop.table(table(TS.vs.MT.z > 1.96 & ConvergenceFailure.diff)), 3) * 100
+         round(prop.table(table(TS.vs.CNTL.z > 1.96 & !ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(MT.vs.CNTL.z > 1.96 & !ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(ST.vs.CNTL.z > 1.96 & !ConvergenceFailure.treat)), 3) * 100,
+         round(prop.table(table(MT.vs.ST.z > 1.96 & !ConvergenceFailure.diff)), 3) * 100,
+         round(prop.table(table(TS.vs.MT.z > 1.96 & !ConvergenceFailure.diff)), 3) * 100
        )[,2])
 }
 
@@ -2258,7 +2258,7 @@ get_significance_and_convergence = function(d) {
   paste0(
     get_significance(d),
     "% (",
-    get_significant_convergence_failure(d),
+    get_significant_wo_convergence_failure(d),
     "%)"
   )
 }

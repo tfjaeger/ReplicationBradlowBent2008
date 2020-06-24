@@ -238,7 +238,13 @@ xhypothesis = function(hypothesis, model = NULL, label = NULL, format = "markdow
 
 
 # Convenience function to make table out of *multiple* hypothesis() objects.
-xhypotheses = function(hypotheses = list(), model = NULL, labels = NULL, format = "markdown", ...) {
+xhypotheses = function(
+  hypotheses = list(), 
+  model = NULL, 
+  labels = NULL, 
+  format = "markdown", 
+  ...
+) {
   require(knitr)
   require(dplyr)
   require(brms)
@@ -246,7 +252,7 @@ xhypotheses = function(hypotheses = list(), model = NULL, labels = NULL, format 
   if (is.null(hypotheses)) 
     stop("ERROR: Must specify at least one hypothesis.\n")
   else if (!is.list(hypotheses))
-    xhypothesis(hypotheses, model, labels, ...)
+    return (xhypothesis(hypotheses, model, labels, ...))
   else if (!is.character(hypotheses[[1]]) & class(hypotheses[[1]]) != "brmshypothesis")
     stop("ERROR: Argument hypotheses is a list, but must contain elements that are characters or brmshypothesis objects.\n")
   else if (is.character(hypotheses[[1]]) & is.null(model)) 
@@ -298,8 +304,7 @@ xhypotheses = function(hypotheses = list(), model = NULL, labels = NULL, format 
                digits = digits, 
                col.names = col.names,
                caption = "Summary of non-linear Bayesian hypothesis testing",
-               format = format)
-  )
+               format = format))
 }
 
 gg_color_hue <- function(n) {

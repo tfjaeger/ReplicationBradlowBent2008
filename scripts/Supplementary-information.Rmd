@@ -2256,9 +2256,9 @@ get_significant_wo_convergence_failure = function(d) {
 
 get_significance_and_convergence = function(d) {
   paste0(
-    get_significance(d),
-    "% (",
     get_significant_wo_convergence_failure(d),
+    "% (",
+    get_significance(d),
     "%)"
   )
 }
@@ -2386,7 +2386,8 @@ kable(
   dimnames = list(
     c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST", "TS vs. MT"),
     col.names = c("BB08", "Exp 1", "Exp 1 (2 * sigma)", "Exp 1 (.5 beta)")
-  ))
+  )),
+  caption = "Percentage of simulations that found the correct (ground truth) effect. Numbers in parentheses show power when only converged models are counted. Numbers outside of parentheses show power when both converged and non-converged models are counted. In practice non-converged models would be refit with reduced random effect structure, until a random effect structure is found that yields convergence."
 )
 
 

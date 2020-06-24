@@ -2376,6 +2376,19 @@ if (!file.exists("../models/powersims.RData")) {
 
 ```{r power analysis-plot}
 # Power = proportion of significant effects in expected direction (for which model also converged)
+kable(
+  matrix(cbind(
+    get_significance_and_convergence(d.sim.small),
+    get_significance_and_convergence(d.sim),
+    get_significance_and_convergence(d.sim.2var),
+    get_significance_and_convergence(d.sim.half)
+  ), nrow = 5, ncol = 4, 
+  dimnames = list(
+    c("Adaptation: TS vs. CNTL", "Question 1: MT vs. CNTL", "Question 2: ST vs. CNTL", "Question 3: MT vs. ST", "TS vs. MT"),
+    col.names = c("BB08", "Exp 1", "Exp 1 (2 * sigma)", "Exp 1 (.5 beta)")
+  ))
+)
+
 k = kable(
   matrix(cbind(
     get_significance_and_convergence(d.sim.small),
@@ -2390,7 +2403,9 @@ k = kable(
   format = "latex"
 )
 
+sink("../tables/table_power_sim.tex")
 print(k)
+sink()
 ```
 
 

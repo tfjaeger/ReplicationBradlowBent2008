@@ -128,23 +128,58 @@ fit.models <- function(d.sim) {
     "TS.vs.MT" = c(-1/4, -1/4, -1/4, 3/4),
     "MT.vs.ST" = c(-1/2, -1/2, 1/2, 1/2),
     "ST.vs.CNTL" = c(-3/4, 1/4, 1/4, 1/4)) 
+  Final.diff = "full"
   m.diff <- glmer(
     Outcome ~ 1 + Cond + 
       (1 | Subject) + (1 + Cond | Item),
     data = d.sim, 
     family = "binomial")
+  if (any(grepl("failed to converge", m.diff@optinfo$conv$lme4$messages))) {
+    Final.diff = "no by-item slope"
+    m.diff <- glmer(
+      Outcome ~ 1 + Cond + 
+        (1 | Subject) + (1 | Item),
+      data = d.sim, 
+      family = "binomial")   
+  }
+  if (any(grepl("failed to converge", m.diff@optinfo$conv$lme4$messages))) {
+    Final.diff = "no by-subject"
+    m.diff <- glmer(
+      Outcome ~ 1 + Cond + 
+        (1 | Item),
+      data = d.sim, 
+      family = "binomial")   
+  }
   m.diff.coef <- coef(summary(m.diff))
+  
   
   # treatement-coded model
   contrasts(d.sim$Cond) = cbind(
     "TS.vs.CNTL" = c(0, 0, 0, 1),
     "MT.vs.CNTL" = c(0, 0, 1, 0),
     "ST.vs.CNTL" = c(0, 1, 0, 0)) 
+  Final.treat = "full"
   m.treat <- glmer(
     Outcome ~ 1 + Cond + 
       (1 | Subject) + (1 + Cond | Item), 
     data = d.sim, 
     family = "binomial")
+  if (any(grepl("failed to converge", m.treat@optinfo$conv$lme4$messages))) {
+    Final.treat = "no by-item slope"
+    m.treat <- glmer(
+      Outcome ~ 1 + Cond + 
+        (1 | Subject) + (1 | Item),
+      data = d.sim, 
+      family = "binomial")   
+  }
+  if (any(grepl("failed to converge", m.treat@optinfo$conv$lme4$messages))) {
+    Final.treat = "no by-subject"
+    m.treat <- glmer(
+      Outcome ~ 1 + Cond + 
+        (1 | Item),
+      data = d.sim, 
+      family = "binomial")   
+  } 
   m.treat.coef <- coef(summary(m.treat))
   
   simulation <- data.frame(
@@ -162,6 +197,8 @@ fit.models <- function(d.sim) {
     Subj.sd.treat= VarCorr(m.treat)[[1]][1]^.5,
     Item.sd.diff = VarCorr(m.diff)[[2]][1]^.5,
     Item.sd.treat = VarCorr(m.treat)[[2]][1]^.5,
+    Final.diff = Final.diff,
+    Final.treat = Final.treat,
     ConvergenceFailure.diff = any(grepl("failed to converge", m.diff@optinfo$conv$lme4$messages)),
     ConvergenceFailure.treat = any(grepl("failed to converge", m.treat@optinfo$conv$lme4$messages)),
     IsSingular.diff = isSingular(m.diff),

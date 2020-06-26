@@ -64,7 +64,6 @@ library(tidyverse)
 library(magrittr)
 library(modelr)
 library(broom)
-library(knitr)
 
 library(cowplot)
 library(ggridges)
@@ -2221,7 +2220,7 @@ For convenience, we provide the result of the power simulations as a data file a
 
 In order to estimate the power for Questions 1-3 (and talker-specific adaptation, for the sake of comparison), each simulation fit both a model with sliding difference coding for exposure condition, and a model with treatment-coding for condition (see code in R markdown). This means that the three simulations presented below required at least 4 * 1000 * 2 = 8000 GLMM fits. Additional model fits were required whenever a model did not converge, in which case we followed common practice and refit the model (on the same data) with reduced random effect structure. Specifically, we first removed the by-item slope for exposure condition. If that model still did not converge, we removed the by-subject intercepts (100\% of these models converged, so that no further reduction needed to be considered).
 
-On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 10 cores. All three simulations together took about 3 days to complete.
+On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 12 cores. All three simulations together took about 3 days to complete.
 
 ```{r power analysis-functions}
 make_subj_cov = function(SD) {
@@ -2335,7 +2334,7 @@ if (!file.exists("../models/powersims.RData")) {
   )
   
   num.sims = 1000
-  n.workers = 12
+  n.workers = min(12, parallel::detectCores())
   plan(multisession, workers = n.workers)
 
   tic()

@@ -277,9 +277,7 @@ plot_3effects = function(
   if (is.null(add_plot)) {
     p = d.m %>%
       ggplot(aes(y = condition, x = .value)) +
-      scale_x_continuous(
-        expression(paste(hat(beta)," (in log-odds)"))
-      ) +
+      scale_x_continuous(expression(paste(hat(beta)," (in log-odds)"))) +
       scale_y_discrete("",
                        breaks = effect.names,
                        labels = c(
@@ -1505,7 +1503,8 @@ summary(m.exp1ab.noAdditionalPredictors.test.diff)
 
 ## Replication analysis (Experiments 1a and 1b)
 
-Use the previous data to establish a prior. You may want to construct a normal prior centered at their estimate, with a standard deviation equal to their SD (Martin proposed SE) estimate. Do this for every coefficient. Construct two models, WITHOUT using the ~ syntax. You need to use the target += normal_lpdf(…) syntax. (This is because we will need to compute the marginal likelihood, with all normalizing constants present, and the ~ syntax drops those constants). The first model has the full model, with priors defined in step 1. The second model has the reduced model, with the coefficient of interest implicitly set to zero (as in, it isn’t present). Everything else is the same as in the first model. Estimate both models using the replication data.
+The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own.If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
+
 
 ```{r, set up replication analysis based on bridge sampling}
 # High number of posterior samples required for bridge_sampling
@@ -1564,7 +1563,6 @@ m.exp1a.test.treat <- brm(
 model = m.exp1a.test.treat
 p = posterior_samples(model)
 
-
 p %<>%
   dplyr::select(-starts_with("r_")) %>%
   dplyr::select(-starts_with("lp_")) %>%
@@ -1606,12 +1604,11 @@ my.newpriors = c(
   set_prior(p[7,"prior"], class = p[7,"class"], coef = p[7,"coef"], group = p[7,"group"]),
   set_prior(p[8,"prior"], class = p[8,"class"], coef = p[8,"coef"], group = p[8,"group"]),
   set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
-#  set_prior(p[10,"prior"], class = p[10,"class"], coef = p[10,"coef"], group = p[10,"group"]),
   prior(lkj(1), class = cor)
 )
-my.newpriors.woTS.vs.CNTL = my.newpriors[-3,]
-my.newpriors.woMT.vs.CNTL = my.newpriors[-1,]
-my.newpriors.woST.vs.CNTL = my.newpriors[-2,]
+my.newpriors.woTS.vs.CNTL = my.newpriors[-which(my.newpriors$class == "b" & my.newpriors$coef == "Cond.treatTS.vs.CNTL"),]
+my.newpriors.woMT.vs.CNTL = my.newpriors[-which(my.newpriors$class == "b" & my.newpriors$coef == "Cond.treatMT.vs.CNTL"),]
+my.newpriors.woST.vs.CNTL = my.newpriors[-which(my.newpriors$class == "b" & my.newpriors$coef == "Cond.treatST.vs.CNTL"),]
 
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1716,12 +1713,14 @@ if (!file.exists(filename.b2.c)) {
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 6: Calculate all the relevant Bayes Factors
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bf(b1, b2.woTS.vs.CNTL)
-bf(b1, b2.woMT.vs.CNTL)
-bf(b1, b2.woST.vs.CNTL)
+bf.TS.vs.CNTL = bf(b1, b2.woTS.vs.CNTL)
+bf.MT.vs.CNTL = bf(b1, b2.woMT.vs.CNTL)
+bf.ST.vs.CNTL = bf(b1, b2.woST.vs.CNTL)
+
+bf.TS.vs.CNTL
+bf.MT.vs.CNTL
+bf.ST.vs.CNTL
 ```
-
-
 
 ### Questions 3
 
@@ -1793,7 +1792,7 @@ my.newpriors.ST.vs.MT = c(
   set_prior(p[9,"prior"], class = p[9,"class"], coef = p[9,"coef"], group = p[9,"group"]),
   prior(lkj(1), class = cor)
 )
-my.newpriors.woST.vs.MT = my.newpriors.ST.vs.MT[-2,]
+my.newpriors.woST.vs.MT = my.newpriors.ST.vs.MT[-which(my.newpriors$class == "b" & my.newpriors$coef == "Cond.diffST.vs.MT"),]
 
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 4: Run same numerically-coded model on new data, but with priors based on original data  
@@ -1853,10 +1852,143 @@ if (!file.exists(filename.b2.a)) {
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # Step 6: Calculate all the relevant Bayes Factors
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-bf(b1, b2.woST.vs.MT)
+bf.MT.vs.ST = bf(b1, b2.woST.vs.MT)
+bf.MT.vs.ST
 ```
 
 
+
+```{r, fig.width=8, fig.height=4.8}
+get_replication_draws = function(
+  model1, 
+  model2, 
+  predictor # can be a vector
+) {
+  model1 %>%
+    gather_draws(!!! rlang::syms(predictor)) %>%
+    mutate(model = "1a") %>%
+    rbind(
+      model2 %>%
+        gather_draws(!!! rlang::syms(predictor)) %>%
+        mutate(model = "1b")
+    )
+}
+
+effects = c("b_Cond.treatMT.vs.ST", "b_Cond.treatST.vs.CNTL", "b_Cond.treatMT.vs.CNTL", "b_Cond.treatTS.vs.CNTL")
+d.m = 
+  get_replication_draws(
+    model1 = m.exp1a.test.treat, 
+    model2 = m.exp1b.test.treat.full, 
+    predictor = c("b_Cond.treatTS.vs.CNTL", "b_Cond.treatMT.vs.CNTL", "b_Cond.treatST.vs.CNTL")) %>%
+  rbind(
+    get_replication_draws(
+      model1 = m.exp1a.test.treat.Q3, 
+      model2 = m.exp1b.test.treat.full.Q3, 
+      predictor = c("b_Cond.treatST.vs.MT")) %>%
+      mutate(.variable = "b_Cond.treatMT.vs.ST", .value = -.value)
+  ) %>% 
+  mutate(.variable = factor(
+    .variable,
+    levels = effects)) 
+
+p = d.m %>%
+  ggplot(aes(x = .value, y = .variable, fill = factor(model))) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  stat_slabh(color = NA, alpha = .5, scale = .8) +
+  ggtitle("Replication analysis") +
+  scale_x_continuous(expression(paste(hat(beta)," (in log-odds)"))) +
+  scale_y_discrete(
+    "",
+    breaks = effects,
+    labels = c(
+      expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle talker")),
+      expression(paste(bold("Question 2   "), "Single talker vs.\nControl")),
+      expression(paste(bold("Question 1   "), "Multi-talker vs.\nControl")),
+      expression(paste(bold("Adaptation   "), "Talker-specific vs.\nControl"))
+    )) +
+  scale_fill_viridis(
+    "",
+    breaks = c("1a", "1b"),
+    labels = c("Prior\n(based on Experiment 1a)", "Posterior\n(after updating w/ data from Experiment 1b)"),
+    discrete = T) + 
+  coord_cartesian(
+    xlim = c(-.3, 1.3),
+    ylim = c(.99, 4.8)) +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    axis.text.y = element_text(hjust=0))
+ggsave(p, filename = "../figures/replication_Q123_effects.pdf", width = 8, height = 4.3)
+
+
+scientific_10 <- function(x) {
+  parse(text=gsub("e", " %*% 10^", scales::scientific_format()(x)))
+}
+
+x = seq(-.05, .05, length.out = 100)
+p.inset = d.m %>%
+  group_by(.variable, model) %>%
+  summarise_at(vars(.value), .funs = list("mean" = mean, "sd" = sd)) %>%
+  crossing(x = x) %>%
+  mutate(y = dnorm(x, mean, sd)) %>%
+  ggplot(aes(x = x, y = y, fill = factor(model))) +
+  geom_vline(xintercept = 0, linetype = 2) +
+  geom_area(alpha = .5, position = "identity") +
+  geom_segment(
+    data = . %>% 
+      filter(x == min(abs(x))),
+    y = 0, aes(x = x, xend = x, yend = y, color = factor(model)), size = 1, alpha = 1) +
+  geom_text(
+    data = . %>%
+      mutate(label = paste("BF =", case_when(
+          .variable == "b_Cond.treatTS.vs.CNTL" ~ round(bf.TS.vs.CNTL$bf, 1),
+          .variable == "b_Cond.treatMT.vs.CNTL" ~ round(bf.MT.vs.CNTL$bf, 1),
+          .variable == "b_Cond.treatST.vs.CNTL" ~ round(bf.ST.vs.CNTL$bf, 1),
+          .variable == "b_Cond.treatMT.vs.ST" ~ round(bf.MT.vs.ST$bf, 1)))) %>%
+      group_by(.variable) %>%
+      summarise(
+        x = min(x) + (max(x) - min(x)) / 45,
+        y = max(y) * .88,
+        label = first(label)
+      ),
+    aes(x = x, y = y, label = label), 
+    hjust = 0,
+    inherit.aes = F) +
+  scale_x_continuous(NULL, breaks = c(min(x), 0), labels = scientific_10) +
+  scale_y_continuous("", label = scientific_10) +
+  scale_color_viridis(
+    "",
+    breaks = c("1a", "1b"),
+    labels = c("Prior\n(based on Experiment 1a)", "Posterior\n(after updating w/ Experiment 1b)"),
+    discrete = T,
+    guide = F) + 
+  scale_fill_viridis(
+    "",
+    breaks = c("1a", "1b"),
+    labels = c("Prior\n(based on Experiment 1a)", "Posterior\n(after updating w/ Experiment 1b)"),
+    discrete = T,
+    guide = F) + 
+  coord_cartesian(expand = F) +
+  facet_wrap(~ factor(.variable, levels = rev(effects)),
+             nrow = 4,
+             scales = "free_y") +
+  theme_bw() +
+  theme(
+    legend.position = "bottom",
+    strip.background = element_blank(),
+    strip.text.x = element_blank(),
+    axis.text.y = element_blank())
+
+l = get_legend(p)
+plot_grid(
+  plot_grid(p + theme(legend.position = "none"), p.inset, axis = "tb", align = "h", rel_widths = c(.8, .2), rel_heights = c(1, .8)),
+  l, nrow = 2, rel_heights = c(.9, .1), axis = "lr")
+ggsave(filename = "../figures/replication_Q123_effects_wInset.pdf", width = 10, height = 4.3)
+
+# ggdraw(
+#   p + 
+#   draw_plot(p.inset, 1.5, .5, .4, 4.5))
+```
 
 
 

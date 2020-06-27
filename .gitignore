@@ -7,3 +7,5 @@
 *.DS_Store
 *.Rapp.history
 *.Rproj
+*.log
+*_cache/

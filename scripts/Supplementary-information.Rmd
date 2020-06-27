@@ -219,6 +219,7 @@ table_3effects = function(model,
       case_when(
         scope == "standard" ~ 1L,
         T ~ length(grep(pattern = paste0("^r_", group, ".*Intercept"), x = parnames(model))))),
+    format = format,
     ...
 )
 }
@@ -1279,6 +1280,13 @@ plot_3effects(m.exp1a.test.diff, "Experiment 1a", fill = colors.model[1])
 ggsave("../figures/exp1a_Q123_effects.pdf", width = 8, height = 3.5)
 
 table_3effects(m.exp1a.test.diff)
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1a.tex")
+  print(table_3effects(m.exp1a.test.diff, format = "latex"))
+  sink()
+}
 ```
 
 ### Talker-specific vs. multi-talker exposure
@@ -1381,6 +1389,13 @@ plot_3effects(m.exp1b.test.diff, "Experiment 1b", fill = colors.model[1])
 ggsave("../figures/exp1b_Q123_effects.pdf", width = 8, height = 3.5)
 
 table_3effects(m.exp1b.test.diff)
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1b.tex")
+  print(table_3effects(m.exp1b.test.diff, format = "latex"))
+  sink()
+}
 ```
 
 ### Talker-specific vs. multi-talker exposure
@@ -2103,6 +2118,13 @@ ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 12, 
 
 table_3effects(m.exp1a.test.diff.wTestTalker, 
                scope = "coef", group = "TestTalkerID")
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1a_byTestTalker.tex")
+  print(table_3effects(m.exp1a.test.diff.wTestTalker, scope = "coef", group = "TestTalkerID", format = "latex"))
+  sink()
+}
 ```
 
 Next, we further quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. This was never the case for any of the comparisons or any of the test talkers. It is worth noting though that *all* effects were numerically smaller for test talker 043.
@@ -2128,10 +2150,17 @@ plot_predicted_outcome(
 ```{r}
 plot_3effects(m.exp1b.test.diff.wTestTalker, "Experiment 1b by test talker", 
               by = "TestTalker", fill = colors.model[2], alpha = 1)
-ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
+ggsave(filename = "../figures/exp1b_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
 
 table_3effects(m.exp1b.test.diff.wTestTalker, 
                scope = "coef", group = "TestTalkerID")
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1b_byTestTalker.tex")
+  print(table_3effects(m.exp1b.test.diff.wTestTalker, scope = "coef", group = "TestTalkerID", format = "latex"))
+  sink()
+}
 ```
 
 Next, we quantify the difference between the different test talkers. The following hypothesis tests assess whether the effect inferred for a given test talker differs from the overall effect inferred across test talkers. As was the case for Experiment 1a, there never was anywhere close to strong evidence that effects for a given test talker differed from the overall effect. For test talker 043, for which all effects were numerically smaller than the average in Experiment 1a, three out of four effects were numerically smaller than the average in Experiment 1b.
@@ -2260,6 +2289,19 @@ We first summarize the results for the Bayesian hypothesis tests for Questions 1
 ```{r}
 table_3effects(m.exp1a.test.diff.wTestTalker, scope = "standard")
 table_3effects(m.exp1b.test.diff.wTestTalker, scope = "standard")
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1a_withTestTalker.tex")
+  print(table_3effects(m.exp1a.test.diff.wTestTalker, scope = "standard", format = "latex"))
+  sink()
+}
+
+{
+  sink(file = "../tables/table_hypotheses_Exp1b_withTestTalker.tex")
+  print(table_3effects(m.exp1b.test.diff.wTestTalker, scope = "standard", format = "latex"))
+  sink()
+}
 ```
 
 ### Accounting for variability by exposure-test talker combination
@@ -2269,6 +2311,19 @@ Next we summarize the results for the Bayesian hypothesis tests for Questions 1-
 ```{r}
 table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, scope = "standard")
 table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, scope = "standard")
+
+# Write to file
+{
+  sink(file = "../tables/table_hypotheses_Exp1a_withExposureTestTalker.tex")
+  print(table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker, scope = "standard", format = "latex"))
+  sink()
+}
+
+{
+  sink(file = "../tables/table_hypotheses_Exp1b_withExposureTestTalker.tex")
+  print(table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, scope = "standard", format = "latex"))
+  sink()
+}
 ```
 
 ### Visualizing the increase in uncertainty 

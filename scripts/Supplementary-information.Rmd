@@ -2114,7 +2114,7 @@ We can also conduct the Bayesian hypothesis tests for Questions 1-3 separately f
 ```{r}
 plot_3effects(m.exp1a.test.diff.wTestTalker, "Experiment 1a by test talker", 
               by = "TestTalker", fill = colors.model[2], alpha = 1) 
-ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
+ggsave(filename = "../figures/exp1a_Q123_effects_byTestTalker.pdf", width = 8, height = 3.5)
 
 table_3effects(m.exp1a.test.diff.wTestTalker, 
                scope = "coef", group = "TestTalkerID")
@@ -2150,7 +2150,7 @@ plot_predicted_outcome(
 ```{r}
 plot_3effects(m.exp1b.test.diff.wTestTalker, "Experiment 1b by test talker", 
               by = "TestTalker", fill = colors.model[2], alpha = 1)
-ggsave(filename = "../figures/exp1b_Q123_effects_byTestTalker.pdf", width = 12, height = 3.5)
+ggsave(filename = "../figures/exp1b_Q123_effects_byTestTalker.pdf", width = 8, height = 3.5)
 
 table_3effects(m.exp1b.test.diff.wTestTalker, 
                scope = "coef", group = "TestTalkerID")
@@ -2611,13 +2611,18 @@ kable(
 ))
   sink()
 }
+
+n.models = 
+  rbind(d.sim, d.sim.small, d.sim.half, d.sim.2var) %>%
+  mutate_at(vars(Final.treat, Final.diff),
+            .funs = function(x) 
+              as.numeric(
+                factor(x, 
+                       levels = c("full", "no by-item slope", "no by-subject")))) %>%
+  summarise(n = sum(Final.treat + Final.diff))
 ```
 
-Total number of models that needed to be fit: `r rbind(d.sim, d.sim.small, d.sim.half, d.sim.2var) %>%
-  mutate_at(vars(Final.treat, Final.diff),
-            .funs = function(x) as.numeric(factor(x, 
-                                       levels = c("full", "no by-item slope", "no by-subject")))) %>%
-  summarise(n = sum(Final.treat + Final.diff))`.
+Total number of models that needed to be fit: `r n.models`.
 
 
 

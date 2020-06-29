@@ -2410,7 +2410,7 @@ In order to estimate the power for Questions 1-3 (and talker-specific adaptation
 On a 2013 PowerMac, ten simulated data sets and analyses for the BB08 data took about 2-3 minutes to complete if run on 12 cores. All three simulations together took about 3 days to complete.
 
 ```{r power analysis-functions}
-make_subj_cov = function(SD) {
+make_cov = function(SD) {
   matrix(
     c(SD^2, rep(0, 15)), 
     nrow = 4,
@@ -2419,7 +2419,6 @@ make_subj_cov = function(SD) {
       c("Intercept", "TS.vs.CNTL", "MT.vs.CNTL", "ST.vs.CNTL")
     )
   )
-  
 }
 
 get_significance = function(d) {
@@ -2473,7 +2472,7 @@ if (!file.exists("../models/powersims.RData")) {
 
   # Make variance-covariance matrices of random effects
   subj_SD = .65
-  subj.ranef.covar = make_subj_cov(subj_SD)
+  subj.ranef.covar = make_cov(subj_SD)
   item.sd = c(1.13, .44, .14, .42)
   item.cor = matrix(
     c(1, .07, .09, -.24, .07, 1, .4, .63, 
@@ -2510,7 +2509,7 @@ if (!file.exists("../models/powersims.RData")) {
   # Don't change order of data generator creation
   item.sd = item.sd * 2
   item.ranef.covar = MBESS::cor2cov(cor.mat = item.cor, sd = item.sd)
-  subject.ranef.covar = make_subj_cov(subj_SD * 2)
+  subject.ranef.covar = make_cov(subj_SD * 2)
   
   my.2var.simulator <- make.data.generator(
     estimates = e, 

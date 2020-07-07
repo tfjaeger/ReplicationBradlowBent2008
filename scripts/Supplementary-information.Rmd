@@ -1776,7 +1776,7 @@ bf.ST.vs.CNTL
 
 ### Questions 3
 
-To test replication of Question 3, we are recoding all treatment contrasts so that the multi-talker condition is the baseline. This allows us to assess replication of the treatment effect of the single talker condition, compared to the multi-talker baseline.
+To test replication of Question 3, we are recoding all treatment contrasts so that the  single talker condition is the baseline. This allows us to assess replication of the treatment effect of the multi- talker condition, compared to the  single talker baseline.
 
 ```{r, replication analysis with treatment coding for Question 3}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

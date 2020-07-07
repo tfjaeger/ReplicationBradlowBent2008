@@ -598,7 +598,7 @@ d.pilot %>%
 
 ### Experiments 1a and 1b
 
-Level at which had to balance both experiments (unique combinations of exposure condition and test talker):
+Level at which both experiments were balanced (unique combinations of exposure condition and test talker):
 ```{r}
 d.exp1ab %>% 
   filter(PartOfExp == "test") %>%
@@ -678,7 +678,7 @@ d.exp1ab %>%
 
 # Exposure phase (Experiments 1a and 1b)
 
-Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the the five trial blocks.
+Recall that exposure consisted of 80 recordings total of 16 different sentence stimuli (from 1 to 5 talkers, depending on the exposure condition). Unbeknownst to participants, these 80 recordings were presented as 5 bins of 16 sentences. The order of the 5 bins was determined by the list. The following figure shows the transcription performance during exposure by condition, binned into the five trial blocks.
 
 ```{r}
 select_training = . %>%
@@ -706,7 +706,7 @@ d.exp1a.test = d.exp1a %>% select_test()
 d.exp1b.test = d.exp1b %>% select_test()
 ```
 
-Overall performance during exposure was rather comparable in Experiments 1a and 1b, as shown in the following figure. However, performance during the earliest exposure blocks was higher in Experiment 1b, compared to 1a, for the multi-talker and control conditions. What these two these two exposure conditions have in common is that they involve five exposure talkers, rather than one (for the same total number of stimuli), and thus more heterogenous stimuli. Performance was lower in Experiment 1b, compared to 1a, in the other two conditions, though these differences were smaller compared to the relative increase in performance in the control and multi-talker condition.
+Overall performance during exposure was rather comparable in Experiments 1a and 1b, as shown in the following figure. However, performance during the earliest exposure blocks was higher in Experiment 1b, compared to 1a, for the multi-talker and control conditions. What these two exposure conditions have in common is that they involve five exposure talkers, rather than one (for the same total number of stimuli), and thus more heterogenous stimuli. Performance was lower in Experiment 1b, compared to 1a, in the other two conditions, though these differences were smaller compared to the relative increase in performance in the control and multi-talker condition.
 
 ```{r, comparison exp1a exp1b}
 myGplot.defaults(type = "paper")
@@ -733,7 +733,7 @@ d.exp1ab.training %>%
 ggsave(filename = "../figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
 ```
 
-Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also {\em faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact {\em same} 16 recordings five times each (the five trial blocks); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial blocks (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
+Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also \textit{faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact \textit{same} 16 recordings five times each (the five trial blocks); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial blocks (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
 
 Second, the performance at the beginning of exposure was higher in Experiment 1b, compared to 1a, for both the multi-talker and control condition. The opposite trend held---though less clearly---for the two exposure conditions. It is possible that these differences reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition, but increased for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
 
@@ -812,7 +812,7 @@ xhypotheses(
 
 ## Potential consequences of individual differences in *a priori* performance
 
-Whatever the reason for these difference, it is possible that they confound the analyses of the test data. **The analyses of performance during the test phase therefore control for individual differences in performance during exposure**. Specifically, the analyses of the test data use an offset term that is based on the individual difference in performance at the onset of the exposure phase. Next, we describe how we estimated these individual differences.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
+Whatever the reason for these differences, it is possible that they confound the analyses of the test data. **The analyses of performance during the test phase therefore control for individual differences in performance during exposure**. Specifically, the analyses of the test data use an offset term that is based on the individual difference in performance at the onset of the exposure phase. Next, we describe how we estimated these individual differences.^[Additional analyses previously conducted for Experiment 1a (which had a more asymmetric distribution of audio equipment across exposure conditions, see above) found that results did not change if audio equipment was included as a control predictor in the analyses.]
 
 
 ## Estimating individual differences in performance at the onset of exposure
@@ -1096,7 +1096,7 @@ xhypotheses(
   labels = paste0("Individual training performance > 0 (", c("TS", "MT", "ST", "CNTL"), " condition)")
 )
 ```
-Te effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance---here shown for the combined data from all exposure conditions of both experiments (SD = .60):
+The effect of the individual differences predictor can also be seen in the reduction of the variability in the by-participant random intercepts during test in the model that controlled for individual differences in performance---here shown for the combined data from all exposure conditions of both experiments (SD = .60):
 
 ```{r}
 summary(m.exp1ab.test.fromTraining)
@@ -1116,7 +1116,7 @@ m.exp1ab.test.justIntercept <- brm(IsCorrect ~
 summary(m.exp1ab.test.justIntercept)
 ```
 
-In other words, individual differences in performance during training relative to other participants that see the same exposure materials are indeed highly predictive of individual differences in performance during test. This highlights the potential that even small imbalanced in these individual differences across the four conditions in Experiments 1a and 1b could make the test results across the two experiments appear less similar than they are (once individual differences are taken into account).
+In other words, individual differences in performance during exposure relative to other participants that see the same exposure materials are indeed highly predictive of individual differences in performance during test. This highlights the potential that even small imbalances in these individual differences across the four conditions in Experiments 1a and 1b could make the test results across the two experiments appear less similar than they are (once individual differences are taken into account).
 
 If we translate the estimated coefficient back into the un-standardized individual differences at the onset of the exposure block (`individual_training_performance.linear`) this yields the following estimates for the relation of individual differences in performance at the onset of training and the performance during test for the four different exposure conditions:
 
@@ -1159,7 +1159,7 @@ In the analysis of the test data, we thus include the individual differences in 
 
 In order to address the three questions we ask in the main text (Table 1), we need to compare test performance between the multi-talker and control condition (*Question 1: Is there cross-talker generalization after multi-talker exposure?*), between the single talker and control condition (*Question 2: Is there cross-talker generalization after single talker exposure?*), and the multi-talker and single talker condition (*Question 3: Does multi-talker exposure facilitate cross-talker generalization, compared to single talker exposure?*). 
 
-To achieve these comparisons, we use `brm()` from the `brms` package to fit Bayesian mixed-effects logistic regression to the test data, predicting the accuracy of participants' responses from the four exposure conditions (control, single talker, multi-talker, talker-specific), and the control predictor for individual differences (see main text for details). The random effect structure was maximal, i.e., random intercepts by subject and item, as well as random slopes for the exposure condition by item (since exposure condition was manipulated between subjects, no by subject slopes were included).
+To achieve these comparisons, we use `brm()` from the `brms` package to fit Bayesian mixed-effects logistic regression to the test data, predicting the accuracy of participants' responses from the four exposure conditions (control, single talker, multi-talker, talker-specific), and the control predictor for individual differences (see main text for details). The random effect structure was maximal, i.e., random intercepts by subject and item, as well as random slopes for the exposure condition by item (since exposure condition was manipulated between subjects, no by-subject slopes were included).
 
 All hypothesis tests reported in the paper are based on a model that uses sliding difference-coding for the the exposure conditions. The *sliding difference-coded model* imposes an order among the four conditions (control < single talker < multi-talker < talker-specific exposure), and compares each condition against the next 'lower' condition. The first contrast compares the single talker against the control condition. The second contrast compares the multi-talker against the single talker condition. The third contrast compares the talker-specific against the multi-talker condition. This coding has the advantage the resulting predictors are orthogonal to each other (unlike for, e.g., treatment-coding). The `hypothesis()` function of the `brms` package makes it easy to test hypotheses about sums of effects. For example, the Bayesian hypothesis test for our first question (*Is there cross-talker generalization after multi-talker exposure?*) asks whether the sum of the single talker vs. control effect (resulting from the first sliding difference-coded contrast) plus the multi-talker vs. single talker effect (resulting from the second sliding difference-coded contrast) is larger than zero. The test for our second question (*Is there cross-talker generalization after single talker exposure?*) asks whether the single talker vs. control effect by itself is larger than zero. The test for our third question (*Is there cross-talker generalization after single talker exposure?*) asks whether the multi-talker vs. single talker effect (resulting from the third sliding difference-coded contrast) is larger than zero. And, finally, the hypothesis test for the talker-specific effect---provided for comparison, as it is has been replicated many times across studies---ask whether the sum of all three sliding difference-coded contrasts is larger than zero.
 
@@ -1167,7 +1167,7 @@ Since some readers might be more familiar with treatment-coding, we also present
 
 We first present the result summary for the three questions of interest. These are the results presented in the main text. Then we we present the complete model output and additional Bayesian hypothesis tests for both the difference- and treatment-coded models.
 
-All models were fit with the settings described in the main text. We note that substantially fewer posterior samples would have been sufficient. A larger number of posterior samples is required for the replication test, but separate (numerically-coded) models were fit for that test anyway. The reason for using equally many warmup and posterior samples for the main analysis was to simplify the write-up.
+All models were fit with the settings described in the main text. We note that substantially fewer posterior samples would have been sufficient. A larger number of posterior samples was required for the replication test, but separate (numerically-coded) models were fit for that test anyway. The reason for using equally many warmup and posterior samples for the main analysis was to simplify the write-up.
 
 ```{r, exp1a test block analysis - main level - also plot this}
 nsamples.warmup = 1000
@@ -1291,7 +1291,7 @@ table_3effects(m.exp1a.test.diff)
 
 ### Talker-specific vs. multi-talker exposure
 
-Due to space limitations, we do not discuss all results of theoretical relevance in the main text. Beyond talker-specific adaptation and Questions 1-3, the differences between the talker-specific and multi-talker conditions is also of interest. It indicates whethercross-talker generalization was essentially as good as the best possible performance. BB08 found no signficiant difference between their talker-specific and multi-talker condition. Here, we do not replicate that result. 
+Due to space limitations, we do not discuss all results of theoretical relevance in the main text. Beyond talker-specific adaptation and Questions 1-3, the differences between the talker-specific and multi-talker conditions is also of interest. It indicates whether cross-talker generalization was essentially as good as the best possible performance. BB08 found no signficiant difference between their talker-specific and multi-talker condition. Here, we do not replicate that result. 
 
 ```{r, exp1a test block analysis - hypotheses for sliding difference coding}
 xhypotheses(list(hypothesis(m.exp1a.test.diff, "Cond.diffTS.vs.MT > 0", class = "b")))
@@ -1472,7 +1472,7 @@ ggsave(filename = "../figures/p.exp1ab.noAdditionalPredictors_split.emplogit.pdf
 ```
 
 ## Meta-analysis (Experiments 1a and 1b)
-We combine the data from both experiments and then repeats the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability.
+We combine the data from both experiments and then repeat the same analysis as above. This is the same as updating the posterior of Experiment 1a with the data from Experiment 1b, therefore assuming exchangeability between the two experiments.
 
 ```{r meta-analysis}
 m.exp1ab.noAdditionalPredictors.test.diff <- brm(
@@ -1518,7 +1518,7 @@ summary(m.exp1ab.noAdditionalPredictors.test.diff)
 
 ## Replication analysis (Experiments 1a and 1b)
 
-The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own.If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
+The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own. If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
 
 
 ```{r, set up replication analysis based on bridge sampling}
@@ -2093,7 +2093,7 @@ m.exp1b.test.diff.wTestTalker <- brm(
 
 
 ### Summary of findings 
-It is clear that the specific effects differ between test talkers. For the present data, these differences are comparatively small: we find the same ordering of relative effect sizes across all test talkers, and the posterior probability for a positive answer to Questions 1-3 is always larger than 50%. The similarity of the effect sizes is perhaps not surprising, since we (a) all of the six test talkers we considered in our pilot study were chosen to be of medium proficiency, <!-- Xin: CHECK --> and (b) of those six, we chose the four test talkers that were not close to ceiling after talker-specific adaptation. In short, our test talkers are representive only of a comparatively homogenous subset of the overall population of Mandarin-accented talkers.
+It is clear that the specific effects differ between test talkers. For the present data, these differences are comparatively small: we find the same ordering of relative effect sizes across all test talkers, and the posterior probability for a positive answer to Questions 1-3 is always larger than 50%. The similarity of the effect sizes is perhaps not surprising, since (a) all of the six test talkers we considered in our pilot study were chosen to be of medium proficiency (between 71% to 86% percentage transcription accuracy according to ALLSTAAR database), and (b) of those six, we chose the four test talkers that were not close to ceiling after talker-specific adaptation. In short, our test talkers are representive only of a comparatively homogenous subset of the overall population of Mandarin-accented talkers.
 
 However, even for test talkers like these, who are *a priori* expected to be relatively similar to each other, it is also clear that we would have come to at least gradiently different conclusions if we had chosen only one of our four test talkers. <!-- TO DO: continue here with brief summary of results -->
 
@@ -2330,7 +2330,7 @@ table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, scope = "sta
 
 The following figures plot the posterior distribution of exposure effects for the three models, and quantify the resulting uncertainty as the standard deviation of that distribution (i.e., the standard error of the estimated effect).
 
-With each additional source of variability (and thus uncertainty), we see that the uncertainty about the effect of exposure increases. This isn't surprising (for relevant background, see Yarkoni, 2019), but it is still worth noting that these increases are *substantial*: the standard error of the effect of single talker, compared to control, exposure increases almost three- to four-fold when we account for the variability across test talkers. <!-- CHECK whether result still holds -->
+With each additional source of variability (and thus uncertainty), we see that the uncertainty about the effect of exposure increases. This isn't surprising (for relevant background, see Yarkoni, 2019), but it is still worth noting that these increases are *substantial*: the standard error of the effect of single talker, compared to control, increases almost three- to four-fold when we account for the variability across test talkers. <!-- CHECK whether result still holds -->
 
 ```{r uncertainty-by-RE-structure, fig.width=12, fig.height=4}
 # Experiment 1a
@@ -2637,21 +2637,33 @@ One hypothesis is that listeners benefit from single talker exposure when the ex
 
 An adequate assessement of this possibility is beyond the scope of this paper. We did, however, explore two (overly simplistic) approaches to measuring similarity: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their segmental phonetics. In both cases, our approach is best understood as a very coarse-grained approximation of the relevant quantity, based on what was feasible within the scope of this project. For example, our approximation of the objective similarity of talkers' phonetics is based on only their vowel productions (in addition to other limitations). 
 
-Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily relu on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not *necessarily* predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitates accurate perception of another talker.
+Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily rely on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not *necessarily* predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitates accurate perception of another talker.
 
-We nevertheless report our approach and findings here, primarily for two reasons. First, good reporting standard dictate that we report all tests we conducted. Second, we hope that the approaches explored here---flawed as they are---can be informative for other reseachers interested in similar questions.
+We nevertheless report our approach and findings here, primarily for two reasons. First, good reporting standard dictates that we report all tests we conducted. Second, we hope that the approaches explored here---flawed as they are---can be informative for other reseachers interested in similar questions.
 
 ## Subjective similarity ratings
 
-We investigated whether perceived talker-to-talker similarity explains differences in cross-talker generalization. We obtained sentence-by-sentence similarity ratings for all exposure and test talker pairs from Exp 1 & 2 from 48 participants over Mechanical Turk (for a similar task, see Strand, 2000). <!--Johnson 2006 "Resonance in an exemplar-based lexicon" summarizes strand [search for "similarity"] -->
+We investigated whether perceived talker-to-talker similarity explains differences in cross-talker generalization. We obtained sentence-by-sentence similarity ratings for all exposure and test talker pairs from Exp 1 & 2 from an independent group of 48 participants over Mechanical Turk (for a similar task, see Strand, 2000). <!--Johnson 2006 "Resonance in an exemplar-based lexicon" summarizes strand [search for "similarity"] -->
 
+In each trial, listeners heard the same sentence twice, produced by two different talkers (different talker pairs) or by the same talker (same talker pairs), and were instructed to rate their similarity on a scale of 1-7 (7 being very similar). Speech stimuli were identical to those used in Exp 1 & 2 and were organized as follows. Each sentence set (each containing 16 sentences) used for Exp 1 & 2 were split into two halves, resulting in a total of four subsets each containing eight sentences. Experimental lists were constructed such that within each list, all combinations of different talker pairs read eight sentences in one of the four subsets (e.g., Set 1, Half A) and all same talker pairs read the other half of the same sentence set (Set 2, Half B). Talker order was counterbalanced such that for each of the different talker pairs, in half trials talker 1 appeared first and in other half trials talker 2 appeared first. One pseudorandom presentation order was created for each experimental list and presented in two reserved presentation orders. There were a total of 16 lists: 4 subsets X 2 talker order X 2 reversed presentation order. 
 
-MORE INFORMATION HERE
+Of note, there was no specific instruction to listeners as to what information they should use to judgment similarity. After the experiment, all participants completed a questionnaire. We asked participants to rank 9 different criteria in terms of which they used the most and the least to perform the similiarity judgment task. 
+
+The nine different criteria presented to participants were as follows:
+
+  - The talkers' voice quality (e.g. gruff, happy)
+  - How the talkers pronounced words
+  - The pitch of the talkers' voices
+  - The general rhythm and contour the talkers used (prosody)
+  - Whether the sentences contained stutters or other disfluencies
+  - Intelligibility of the talkers
+  - How manly the talkers sounded
+  - The speaking rate of the talkers
+  - Other (specify below)
 
 ### Methods
 
-EXPLAIN ALSO HOW TALKER SCORE WAS OBTAINED.
-
+For each participant, we first computed the mean similarity rating for each unique exposure-test talker pairs (20 different talker pairs + 4 same talker pairs) by averaging across sentences. These by-participant ratings for talker pairs were entered into further analyses reported below. 
 
 ### Summary of similarity scores
 ```{r prepare similarity analyses}
@@ -2690,7 +2702,7 @@ d.sim.subj =
   ungroup()
 ```
 
-The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The six talkers to the right of the dividing line are the self-similarity ratings for the six talkers used during exposure---i.e., the similarity between exposure and test talker that participants in the talker-specific condition would experience. To the left of the dividing line are similarity ratings for all 20 combinations of exposure and test talker experienced by participants in the single talker condition. Unsurprisingly, acoustically identical sentences from the same talker were given the highest similarity ratings. While there was substantial variability in similarity ratings (reflected in the confidence intervals), the results also suggest that some of the exposure and test talkers were rated to be significantly more similar to each other than others. For example, the mean similarity ratings for the least similar talker pairs fall outside of the 95\% confidence intervals for the most similar talker pairs.
+The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The four talkers to the right of the dividing line are the self-similarity ratings for the four talkers used during test---i.e., the similarity between exposure and test talker that participants in the talker-specific condition would experience. To the left of the dividing line are similarity ratings for all 20 combinations of exposure and test talker experienced by participants in the single talker condition. Unsurprisingly, acoustically identical sentences from the same talker were given the highest similarity ratings. While there was substantial variability in similarity ratings (reflected in the confidence intervals), the results also suggest that some of the exposure and test talkers were rated to be significantly more similar to each other than others. For example, the mean similarity ratings for the least similar talker pairs fall outside of the 95\% confidence intervals for the most similar talker pairs.
 
 The second plot splits up these ratings by test talker and sentence set (which 16 of the 32 sentences were used during test, rather than exposure). Overall, the similarity ratings for pairs of exposure and test talker are relatively robust to which sentences (and thus recordings) were used during test: the ordering of talker combinations does not differ *much* between the first and second row of panels But there are are some instances in which the relative similarity of the exposure and test talker depends on the sentence. For example, the three least similar exposure talkers for test talker 043 seem to only differ in the relative similarity with regard to Set 2. Similarly, the second most similar exposure talker for test talker 032 either groups with the most similar or the next most similar exposure talker, depending on whether similarity was rated with regard to Set 1 or 2.
 
@@ -2780,7 +2792,7 @@ m.exp1b.subjective_similarity.ST = run_subjective_similarity_analysis(
 ```
 
 
-To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we calculated the mean similarity rating for each unique combination of the 20 different pairs of exposure and test talker, and the two different training & test sets. 
+To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we calculated the mean similarity rating for each unique combination of the 20 different pairs of exposure and test talker, and the two different exposure-test sentence sets. 
 
 We then fit a Bayesian mixed-effect logistic regression to just the test data from the single talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
 
@@ -2808,7 +2820,7 @@ One potential reason for the weak / absent relation between the subjective simil
 
 Other possible nuisance influence on the subjective similarity ratings are incidental differences between recordings, such as overt disfluencies (such as "uh", "um", or restarts) or speech errors (i.e., a pronunciation that is atypical for that talker). Recall that participants in the rating study rated the similarity between pairs of recordings of the same sentence. If one talker's recording contains an overt disfluency, and the other other talker's recording does not, this might lead participants to rate these two productions as less similar---but this type of dissimilarity is unlikely to be predictive of talker-to-talker generalization. 
 
-We note that similarity ratings *are* predictive of performance during test if similarity ratings are *not* averaged for each unique combination of exposure talker, test talker, and training & test sets---both for Experiment 1a and 1b: 
+We note that similarity ratings *are* predictive of performance during test if similarity ratings are *not* averaged for each unique combination of exposure talker, test talker, and exposure-test sentence sets---both for Experiment 1a and 1b: 
 
 ```{r}
 m.exp1a.subjective_similarity.ST.sentence_level = run_subjective_similarity_analysis(
@@ -2827,7 +2839,7 @@ xhypothesis(hypothesis(m.exp1a.subjective_similarity.ST.sentence_level, "Similar
 xhypothesis(hypothesis(m.exp1b.subjective_similarity.ST.sentence_level, "Similarity > 0"))
 ```
 
-If similarity ratings---which are available for each unique pair of recordings of the same sentence---are instead entered into the mixed-effects logistic regression as-is---i.e., while allowing to vary between sentences---we find very strong support for the hypothesis that subjective similarity predicts talker-to-talker generalization (BFs > 150). However, this might simply reflect that a) raters gave lower similarity scores to pairs of sentences when one sentence differed from the other in terms of overt disfluences or speech errors, and b) the presence of overt disfluencies or speech errors also makes it harder to correctly transcribe a sentence. In that case, sentence-level similarity would correlate with sentence-level transcription accuracy for reasons independet of successful talker-to-talker transfer. Given that we the talker-level similarity ratings to not be consistently predictive of performance during test, we believe this to be the most likely explanation for the very strong correlation between sentence-level similarity ratings and performance during test.
+If similarity ratings---which are available for each unique pair of recordings of the same sentence---are instead entered into the mixed-effects logistic regression as-is---i.e., while allowing to vary between sentences---we find very strong support for the hypothesis that subjective similarity predicts talker-to-talker generalization (BFs > 150). However, this might simply reflect that a) raters gave lower similarity scores to pairs of sentences when one sentence differed from the other in terms of overt disfluences or speech errors, and b) the presence of overt disfluencies or speech errors also made it harder to correctly transcribe a sentence. In that case, sentence-level similarity would correlate with sentence-level transcription accuracy for reasons independet of successful talker-to-talker transfer. Given that we did not find the talker-level similarity ratings to be consistently predictive of performance during test, we believe this to be the most likely explanation for the very strong correlation between sentence-level similarity ratings and performance during test.
 
 
 
@@ -2860,19 +2872,24 @@ d.sim.obj =
   ungroup()
 ```
 
-MORE INFORMATION HERE. INCL. DOWNSIDES / LIMTATIONS OF THIS APPROACH
+
+Alternatively, one could measure the similarity of talker pairs based on the phonetic properties of their production. However, in a transcription paradigm that employs speech naturally produced by foreign-accented talkers, it is unclear what phonetic contrasts or acoustic properties can facilitate perception of foreign-accented speech and therefore be examined in relation to talker similarity. As an attempt, we analyzed the vowel productions of all talkers used in Exp 1 & 2 and used the similarity of vowel production as a first approximation for phonetic similarity in general. 
 
 Our sole motivation in chosing *vowels*, rather than all (or other) types of segments, is feasibility. The center of vowels (on which we measured F1 and F2) are comparatively easy to identify and segment. The cues relevant to vowel identification in American English (primarily F1 and F2) are comparatively well understood (Hillenbrand et al., 1995 and follow-up studies), and easily be extracted from the segmented speech. 
 
-That said, the approach taken here is limited in many ways. MORE HERE. LACKING SOUNDS, NO WORD AND CONTEXT EFFECTS, NO SUPRA-SEGMENTAL ... 
+That said, the approach taken here is limited in many ways. Although vowels generally are important in determining speech intelligibility (Kewley-Port et al., 2007), they are not necessarily the perceptually most advantageous sounds in improving the intelligibility of Mandarin-accented speech. In addition, our experimental lists were not designed to be phonetically balanced. As a result, the number of tokens across vowel categories may be insufficient; the production of specific vowel tokens may be influenced by many factors that were not controlled for, such as phonetic contexts, word frequency, etc. 
+
 
 ### Methods
 
-MORE INFO HERE
+We analyzed ten vowels /i, ɪ, e, æ, ɛ, ʌ, ɑ, o, ɔ, u/ that were relatively well-present in our stimuli (having at least three tokens per talker). Formants (F1, F2) measurements were measured in Praat at three points (20%,50%,80%) for each target vowel based on default Burg formant tracking analyses (5 formants in 5500 Hz; 25 ms window) and verified by visual examination of wide band spectrograms. Midpoints (50%) were used in the analyses reported here. 
+
+To determine the similarity between talkers within each talker pair, we ask how well an ideal observer recognizes the vowels (based on Lobanov-normalized F1 and F2) produced by the second talker if it is trained with vowel tokens from the first talker. Using the vowel productions from each talker, ideal observers were trained to estimate vowel-specific cue distributions as bivariate Gaussian distributions. Then these ideal observers were applied to the vowels from different test talkers in a vowel categorization task (10 alternative forced choice). If there were sufficient training tokens, then the test performance would be best when the training talker and the test talker were the same; the more similar the two talkers' vowel productions are, the higher test accuracy would be for a given test talker as a function of the training talker. 
+
 
 ### Summary of ideal observer-derived accuracies
 
-The following plots show the predicted accuracy of an ideal observer applied to the vowel's of the test talker, based on training on the vowels of the exposure talker. The six talkers to the right of the dividing line correspond to the talker-specific condition. To the left of the dividing line are predicted accuracies for all 20 combinations of exposure and test talker in the single talker condition. What is striking is that accuracy is *not* always highest in the talker-specific condition, despite the fact that in this case the exposure stimuli that the model is trained on come from the same talker as the test stimuli that the model is tested on. This provides strong evidence that the models are overfit to the training data, presumably because we simply do not have sufficiently many instances of the different vowels in the training data. In line with this hypothesis, the relative ordering of the different single talker models differs quite a bit depending on which set of sentences was used for training and which set was used for test (see second plot).
+The following plots show the predicted accuracy of an ideal observer applied to the vowels of the test talker, based on training on the vowels of the exposure talker. The six talkers to the right of the dividing line correspond to the talker-specific condition. To the left of the dividing line are predicted accuracies for all 20 combinations of exposure and test talker in the single talker condition. What is striking is that accuracy is *not* always highest in the talker-specific condition, despite the fact that in this case the exposure stimuli that the model is trained on come from the same talker as the test stimuli that the model is tested on. This provides strong evidence that the models are overfit to the training data, presumably because we simply do not have sufficiently many instances of the different vowels in the training data. In line with this hypothesis, the relative ordering of the different single talker models differs quite a bit depending on which set of sentences was used for training and which set was used for test (see second plot).
 
 This strongly suggests that **the measure of objective similarity we have developed here is a *bad* approximation of the true objective similarity of the vowel statistics.** We therefore would *not* expect this measure to be predictive of transcription accuracy during test.
 

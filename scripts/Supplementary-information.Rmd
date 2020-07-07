@@ -1553,7 +1553,9 @@ summary(m.exp1ab.noAdditionalPredictors.test.diff)
 
 ## Replication analysis (Experiments 1a and 1b)
 
-The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own.If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
+The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own. If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
+
+For the replication analysis, we use treatment-coded models, rather sliding difference-coded models. We do so because the replication analysis requires comparison of the full models (of Experiment 1b) against models with the effects of interest removed---in order to set those effects to zero (also for Experiment 1b; see Appendix E in the main text). This is most straightforwardly done in the treatment-coded models. For questions 1-2, we use the control condition as reference baseline for the treatment coding. For questions 3, we use the single talker condition as reference baseline, so that the multi-talker treatment effect in that model corresponds to the difference between multi-talker and single talker exposure. 
 
 
 ```{r, set up replication analysis based on bridge sampling}

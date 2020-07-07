@@ -2370,7 +2370,7 @@ table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker, scope = "sta
 
 The following figures plot the posterior distribution of exposure effects for the three models, and quantify the resulting uncertainty as the standard deviation of that distribution (i.e., the standard error of the estimated effect).
 
-With each additional source of variability (and thus uncertainty), we see that the uncertainty about the effect of exposure increases. This isn't surprising (for relevant background, see Yarkoni, 2019), but it is still worth noting that these increases are *substantial*: the standard error of the effect of single talker, compared to control, exposure increases almost three- to four-fold when we account for the variability across test talkers. <!-- CHECK whether result still holds -->
+With each additional source of variability (and thus uncertainty), we see that the uncertainty about the effect of exposure increases. This isn't surprising (for relevant background, see Yarkoni, 2019), but it is still worth noting that these increases are *substantial*: the standard error of the exposure effects increases almost three- to four-fold when we account for the variability across test talkers. <!-- CHECK whether result still holds -->
 
 ```{r uncertainty-by-RE-structure, fig.width=12, fig.height=4}
 # Experiment 1a

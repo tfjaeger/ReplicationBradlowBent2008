@@ -508,7 +508,9 @@ d.full %<>%
     Experiment = case_when(
       Exp2_subj == "yes" ~ "1a",
       ExpRep_subj == "yes" ~ "1b",
-      T ~ "Pilot only"
+      Exp1_subj == "yes" ~ "Pilot only",
+      Exp3_subj == "yes" ~ "OrderTest",
+      T ~ NA_character_
     ),
     PilotParticipant = ifelse(Exp1_subj == "yes", T, F),
     Condition = factor(Condition2, levels = levels.exposure)
@@ -592,6 +594,12 @@ d.pilot <- d.full %>%
   distinct() %>%
   droplevels() %>%
   mutate(Experiment = "Pilot")
+
+# Experiment that test effects of item order
+d.order <- d.full %>%
+  filter(Experiment == "OrderTest") %>%
+  distinct() %>%
+  droplevels()
 
 # Experiment 1a (formerly 2a): ts, cntl, st, mt
 d.exp1a <- d.full %>%

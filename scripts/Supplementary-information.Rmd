@@ -3269,7 +3269,7 @@ d.order %<>%
   filter(Condition != "Control") %>%
   droplevels()
 ```
-We recruited a total of 69 additional participants in the single and multi-talker conditions for which we wanted to compare the effect of exposure variability. None of the participants met any of the exclusion criteria.
+We recruited a total of 69 additional participants in the single and multi-talker conditions for which we wanted to compare the effect of exposure variability. None of the participants met any of the exclusion criteria. We note that an original presentation of this control experiment at the 2016 CUNY Conference on Sentence Processing mistakenly included (additional) participants that had been tested on stimuli that were also part of exposure. These participants were excluded here.
 
 ```{r}
 d.order %>%
@@ -3355,7 +3355,6 @@ ggsave(p, filename = "./figures/p.exp2.emplogit.pdf", device = cairo_pdf, width 
 ### Discussion
 
 The results of this comparison do indeed suggest that multi-talker exposure might benefit from increased variability during exposure. No such benefit was observed for single talker exposure. Since these results are based on a rather small number of participants, they should be interpreted with caution. Taken at face value, these results are problematic for the assumption that variability always facilitates cross-talker generalization.
-
 
 # Session info
 ```{r session_info, include=TRUE, echo=TRUE, results='markup'}

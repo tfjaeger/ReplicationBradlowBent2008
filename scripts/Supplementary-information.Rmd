@@ -597,7 +597,12 @@ d.pilot <- d.full %>%
 
 # Experiment that test effects of item order
 d.order <- d.full %>%
-  filter(Experiment == "OrderTest") %>%
+  filter(Experiment == "OrderTest" & TrainingTestSet != "set12345,set2") %>%
+  distinct() %>%
+  droplevels()
+
+d.order.training_includes_test <- d.full %>%
+  filter(Experiment == "OrderTest" & TrainingTestSet == "set12345,set2") %>%
   distinct() %>%
   droplevels()
 
@@ -3245,6 +3250,111 @@ xhypothesis(hypothesis(m.brm.pilot.test, "Cond.treatTS.vs.CNTL > 0", class = "b"
 
 
 
+
+# Additional small-scale replications
+
+## Does increased variability during exposure affect transcription accuracy during test? (Experiment 2)
+
+This small control experiment was conducted in order to assess whether the order of stimuli stimuli during exposure might affect cross-talker generalization (as suggested by some work, e.g., Tzeng et al., 2016). At some point while collecting data for Experiment 1a, we became aware that the order of stimuli during exposure employed in our replication differed from that employed in BB08 (see paper for discussion). At that point, we thus conducted Experiment 2 with the primary goal to assess whether increased variability during exposure facilitates cross-talker generalization during test. Facilitation is predicted by the type of variability-based account advanced in BB08, and has indeed been observed in some studies (Tzeng et al., 2016). Here, we thought to go beyond small changes in the order of stimuli, and instead drastically increase variability during exposure (while holding the test stimuli constant). 
+
+The results of this control experiment should, however, be interpreted with caution given the small number of participants. 
+
+### Participants 
+
+```{r}
+d.order %<>%
+  # Excluding this test talker since it was only used in the control condition
+  filter(TestTalkerID != "CMN_M_035") %>%
+  # Excluding all control subjects since are just not enough left
+  filter(Condition != "Control") %>%
+  droplevels()
+```
+We recruited a total of 69 additional participants in the single and multi-talker conditions for which we wanted to compare the effect of exposure variability. None of the participants met any of the exclusion criteria.
+
+```{r}
+d.order %>%
+  group_by(Condition) %>%
+  dplyr::select(WorkerID) %>%
+  distinct() %>%
+  tally()
+```
+
+### Materials
+The materials were identical to Experiments 1a and 1b, except that we used an additional 64 different sentences, resulting in a total of 96 instead of 32 sentences. Following Experiments 1a and 1b, we divided these sentences in sets of 16, where set 1 and set 2 are the two sets used in Experiments 1a and 1b. As in Experiments 1a and 1b, either set 1 or set 2 was used as test set. All other five sets of 16 sentences were used as exposure stimuli, resulting in the following fully balanced distribution of stimuli across conditions:
+
+```{r}
+d.order %>%
+  group_by(Condition) %>%
+  dplyr::select(TrainingTestSet) %>%
+  distinct()
+```
+
+We used only three of the four test talkers from Experiments 1a and 1b, the ones for which we had materials available when Experiment 2 was conducted.
+
+```{r}
+d.order %>%
+  group_by(Condition) %>%
+  dplyr::select(TestTalkerID) %>%
+  distinct()
+```
+
+As in Experiments 1a and 1b, we recruited data for all possible combinations of exposure and test talkers in the single talker condition. Since we have a total of six talkers to choose from (as in Experiments 1 an and 1b) but only three test talkers for Experiment 2 (rather than four), this resulted in 15 unique combinations:
+
+```{r}
+d.order %>%
+  filter(Condition %in% "Single talker") %>%
+  group_by(Condition) %>%
+  dplyr::select(TrainingTalkerID, TestTalkerID) %>%
+  distinct()
+```
+
+### Test results
+
+We compare the results to 72 randomly sampled participants from the single and multi-talker conditions of Experiment 1a (which was run around the same time as Experiment 2). We sampled these participants only from participants who had been tested on the same three test talkers as in Experiment 2. An equal number of participants (four) was sampled for each unique combination of condition, test talker, and test set (which of the two sets of 16 sentences was used during test).
+
+```{r}
+d.order.test = 
+  d.order %>%
+  filter(PartOfExp == "test")
+
+d.exp1a.test.sub =
+  d.exp1a.test %>%
+  filter(
+    TestTalkerID != "CMN_M_035",
+    Condition %in% c("Single talker", "Multi-talker")) %>%
+  droplevels() %>%
+  group_by(Condition, TestTalkerID, TrainingTestSet) 
+
+d.exp1a.test.sub %<>%
+  filter(WorkerID %in% sample(unique(WorkerID), 4)) %>%
+  droplevels() %>% 
+  ungroup()
+
+myGplot.defaults(type = "paper")
+p.test.proportion %+% 
+  (d.order.test %>%
+     dplyr::select(Experiment, WorkerID, Sentence, Condition, PartOfExp, PropKeywordsCorrect) %>%
+     rbind(d.exp1a.test.sub %>%
+             dplyr::select(Experiment, WorkerID, Sentence, Condition, PartOfExp, PropKeywordsCorrect)) %>%
+     group_by(Experiment, WorkerID, Sentence) %>%
+     distinct(.keep_all = TRUE) %>%
+     group_by(Experiment, WorkerID, Condition) %>%
+	dplyr::summarise(PropKeywordsCorrect = mean(PropKeywordsCorrect))) + 
+  aes(shape = Experiment) + theme(legend.position = "bottom")
+ggsave(filename = "./figures/p.exp2.pdf", device = cairo_pdf, width = 3, height = 4, dpi=300)
+
+p = p.test.emplogit %+% (
+  d.order.test %>%
+    group_by(WorkerID, Sentence) %>%
+    distinct(.keep_all = TRUE) %>%
+    group_by(WorkerID, Condition) %>%
+    dplyr::summarise(PropKeywordsCorrect = emplog(mean(PropKeywordsCorrect), 51)))
+ggsave(p, filename = "./figures/p.exp2.emplogit.pdf", device = cairo_pdf, width = 3, height = 4, dpi=300)
+```
+
+### Discussion
+
+The results of this comparison do indeed suggest that multi-talker exposure might benefit from increased variability during exposure. No such benefit was observed for single talker exposure. Since these results are based on a rather small number of participants, they should be interpreted with caution. Taken at face value, these results are problematic for the assumption that variability always facilitates cross-talker generalization.
 
 
 # Session info

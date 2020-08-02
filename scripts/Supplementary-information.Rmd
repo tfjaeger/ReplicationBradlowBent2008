@@ -2274,6 +2274,31 @@ m.exp1b.test.diff.wExposure_crossed_with_TestTalker <- brm(
   control = list(adapt_delta = 0.99999, max_treedepth = 15),
   prior = my.priors.wExposureTalker.diff, 
   file = "./models/exp1b.Test.diff.wExposure_crossed_with_TestTalker")
+
+###################################### Experiment 1ab (both)
+my.priors.wExposureTalker.diff = c(
+  # Prior on intercept was necessary for convergence.
+  prior(student_t(10,2.10,2.5), class = "Intercept"),
+  # Following Gelman et al (2008) and later revisions on wiki.
+  prior(student_t(3,0,2.5), class = b),
+  # I used a smaller scale to aid convergence, 5 is a common choice for logit models
+  prior(cauchy(0,2.5), class = sd), 
+  # Uniform prior of correlations
+  prior(lkj(1), class = cor)
+)
+
+m.exp1ab.test.diff.wExposure_crossed_with_TestTalker <- brm(
+  IsCorrect ~ 
+    Cond.diff + offset(individual_training_performance.offset) +
+    (1 + Cond.diff | Sentence) + (1 | WorkerID) +
+    (1 + Cond.diff | TestTalkerID) + 
+    (1 | TrainingUnderTestTalkerID),
+  data = d.exp1ab.test, 
+  family = bernoulli, cores = max.cores, chains = 4,
+  warmup = nsamples.warmup.wTalker, iter = nsamples.total.wTalker,
+  control = list(adapt_delta = 0.99999, max_treedepth = 15),
+  prior = my.priors.wExposureTalker.diff, 
+  file = "./models/exp1ab.Test.diff.wExposure_crossed_with_TestTalker")
 ```
 
 To address our second question:

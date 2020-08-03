@@ -474,7 +474,7 @@ plot_predicted_outcome = function(
   ggsave(p, 
          filename = paste0("./figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
          height = .2 + (if (length(groups) > 0) nrow * 3.5 else 3.5), 
-         width = .5 + (if (length(groups) > 0) (nlevels(!!! syms(groups[1])) * 3.5) / nrow else 6))
+         width = .5 + (if (length(groups) > 0) (nlevels(m[[groups[1]]]) * 3.5) / nrow else 6))
   
   return(p)
 }

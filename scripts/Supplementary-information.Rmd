@@ -426,7 +426,8 @@ plot_predicted_outcome = function(
   n.draws = 1000,
   experiment = c("1a", "1b"),
   groups = c("TestTalkerID", "TrainingUnderTestTalkerID"),
-  offset.term = "individual_training_performance.offset"
+  offset.term = "individual_training_performance.offset",
+  nrow = 1 
 ) {
   d = data %>%
     group_by(WorkerID, TestTalkerID, TrainingTalkerID, TrainingUnderTestTalkerID, Condition, Cond.diff, !! sym(offset.term), Sentence) %>%
@@ -467,12 +468,13 @@ plot_predicted_outcome = function(
                       values = setNames(colors.exposure, levels.exposure), 
                       guide = F) +
     coord_cartesian(ylim = c(0.75,1.0)) +
-    { if (length(groups) > 0) facet_grid(cols = vars(!!! syms(groups[1]))) }  +
+    { if (length(groups) > 0) facet_wrap(facets = vars(!!! syms(groups[1])), nrow = nrow) }  +
     theme(legend.position = "bottom", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
   
   ggsave(p, 
          filename = paste0("./figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
-         height = 3.7, width = 15)
+         height = .2 + (if (length(groups) > 0) nrow * 3.5 else 3.5), 
+         width = .5 + (if (length(groups) > 0) (nlevels(!!! syms(groups[1])) * 3.5) / nrow else 6))
   
   return(p)
 }
@@ -2352,6 +2354,29 @@ table_3effects(m.exp1b.test.diff.wExposure_crossed_with_TestTalker,
                scope = "ranef", group = "TestTalkerID")
 ```
 
+
+### Experiments 1a and 1b together
+
+This is based on the same model but combining the data from both experiments, just like the meta-analysis for the main analysis.
+
+```{r, fig.height=3.5, fig.width=15}
+plot_predicted_outcome(
+  data = d.exp1ab.test,
+  model = m.exp1ab.test.diff.wExposure_crossed_with_TestTalker,
+  groups = c("TestTalkerID", "TrainingUnderTestTalkerID"),
+  n.draws = 2000,
+  experiment = "1ab",
+  nrow = 2)
+```
+
+Replicating the analysis by test talkers, we find that only the talker-specific effect receives strong support within each test talker.
+
+```{r, fig.height=20, fig.width=20}
+table_3effects(m.exp1ab.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "coef", group = "TestTalkerID")
+table_3effects(m.exp1ab.test.diff.wExposure_crossed_with_TestTalker,
+               scope = "ranef", group = "TestTalkerID")
+```
 
 
 

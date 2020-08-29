@@ -1494,7 +1494,7 @@ xhypotheses(
 
 
 \newpage
-# Do Experiments 1a and 1b support the same conclusions?
+# What can we conclude from Experiments 1a and 1b together?
 
 ```{r combined experiments 1a and 1b test data}
 d.exp1ab.test$Experiment = factor(d.exp1ab.test$Experiment,
@@ -2382,9 +2382,9 @@ table_3effects(m.exp1ab.test.diff.wExposure_crossed_with_TestTalker,
 
 ## Uncertainty about posterior effect size estimates based on the random effect structure
 
-We ask how the uncertainty about the effects of exposure changes depending on which grouping factors are acknowledged in the analysis. The analyses reported in the main text followed the conventions of the field in 2020 and included by-subject and -item random effects (Bradlow and Bent, 2008 only included by-subject analyses). However, our experiment included multiple test talkers as well as many exposure-test talker combinations. If we want to know whether the effects of our exposure conditions are likely to generalize across the population of talkers that our exposure and test talkers are drawn from, we arguably need to adequately account for these grouping factors (see Yarkoni, 2019 for discussion).
+The present study serves as a reminder that the uncertainty researchers should maintain about the generalizability of experimental results is often much larger than traditional analyses suggest. It is now broadly recognized that subjects constitute a source of random variability that should be taken into account during statistical analysis if one wants to adequately balance the need for conservativity and the goal to generalize from the experimental sample to populations. Yet, other sources of random variability have largely remained ignored, despite the fact that they can limit generalizability just as much. In particular, it is easy to underestimate the cumulative effect of additional sources of variability (Yarkoni, 2019)---such as the particular talkers chosen in an experiment on speech perception. This tendency to 'remember the result, but forget about the uncertainty associated with it' is perhaps further exaggerated by a habit to think about results in terms of the absence or presence of significant effects (cf. the ''significance filter', Vasishth et al., 2018). Bayesian analyses like the ones we present provide a useful tool to more adequately capture the degree of uncertainty that we should have about the existence of cross-talker generalization, but they do not solve the problem of inflated certainty or generalizability if sources of random variability cannot be assessed due to measurement or design characteristics.
 
-We thus use the two Bayesian mixed-effects logistic regressions with random effects by test talker and exposure-test talker combinations to measure how the uncertainty about the effect of exposure condition changes if those additional random effects are included in the analysis. 
+One innovative aspect of the current replications, namely the use of multiple exposure and test talkers, lets us assess the generalizability of our results beyond the specific exposure and test talkers employed in Experiments 1a and 1b. We use the Bayesian mixed-effects logistic regressions with random effects by exposure and test talkers to quantify how much our certainty about the effect of exposure increases if our analyses acknowledge exposure and/or test talkers as sources of random variability. Compared to the main analysis, the strength of support in the analysis by test talker decreased for all effects. This is not only the case at the level of by-talker effect (see Figures in Section 7.1 and 7.2), but also with regard to the overall effects of exposure after marginalizing over the uncertainty about the variability in effects across talkers. As we show in this section, the extent of the increase in the uncertainty that results from the inclusion of random effects by test talkers is worth emphasizing: for all effects in both experiments, the standard deviation of the posterior estimate (i.e., the standard error of their mean) increase by a factor of 3-4 when random effects by test talker are included in the analysis. 
 
 ### Accounting for variability by test talker
 
@@ -2466,6 +2466,13 @@ p
 ggsave(p, filename = "./figures/exp1b_Q123_effects_dependingOnRE.pdf", width = 12, height = 4.5)
 ```
 
+### What does this mean?
+
+Once we consider the full uncertainty about test talkers, the only effect for which we have strong evidence to generalize to unseen talkers (BF > 20) is the benefit of talker-specific exposure in Experiment 1a. This should not be surprising. The analysis with random effects by test talker assesses whether our findings are likely to generalize to the larger population of test talkers, rather than `just' across items and participants (for discussion, see Yarkoni, 2019). And, four test talkers are simply not enough to assess whether an effect is likely to hold across the population of talkers, for the same reason that four participants are not enough to assess whether an effect holds across participants. 
+
+This is not *necessarily* a problem. First, if a field (for example, psychophysics) has thoroughly determined that this assumption of cross-participant or cross-talker generalization is likely to hold (for a set of behavioral variables under investigation), making such an assumption in any given experiment constitutes one of many simplifying assumptions made for the sake of being able to draw *any* conclusions. %However, this has not yet been established for speech perception (and many other fields involving higher-level cognition). %For fields such as speech perception, and other domains of the psychological sciences that investigate social or socially-conditioned inferences, however, using stimuli from multiple members of the population (e.g., multiple talkers) can be important if the goal is to adequately capture this source of variability. 
+
+Second, many theoretical questions in the cognitive sciences are tested by assessing the *existence* of certain effects, rather than whether they are always detectable. Even a mechanism that is always operating and central to perception is *not* expected to yield detectable consequences under all circumstances. For the research question at hand, for example, we do not expect similarity-based generalization to always yield successful generalization. In fact, as we have outlined above, this hypothesis predicts that generalization will only yield detectable evidence of cross-talker generalization when the talkers are sufficiently similar. For the present purpose, the critical question is not whether we would find cross-talker generalization after exposure to any single talker with the same accent, but rather whether we find such generalization when predicted. 
 
 
 ## Full model summaries

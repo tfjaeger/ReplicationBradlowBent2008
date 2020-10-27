@@ -97,7 +97,8 @@ options(mc.cores = max.cores, width = 1000)
 source("./scripts/functions.R")
 
 dotplot_binwidth = 0.02
-levels.exposure = c("Control", "Single talker", "Multi-talker", "Talker-specific")
+labels.exposure = c("Control", "Single-talker", "Multi-talker", "Talker-specific")
+levels.exposure = c("Control", "Single-talker", "Multi-talker", "Talker-specific")
 colors.exposure = c("#B1B1B1", "#1F78B4", "#33A02C", "#E31A1C")
 colors.model = viridis::viridis_pal()(3)  # without by-talker effects, by test talker, by exposure-test talker combinations
 
@@ -127,19 +128,19 @@ defineContrasts = function(dataset) {
       Cond.treatTS.vs.CNTL = case_when(
         Cond.treat == "Talker-specific" ~ 1,
         Cond.treat == "Multi-talker" ~ 0,
-        Cond.treat == "Single talker" ~ 0,
+        Cond.treat == "Single-talker" ~ 0,
         T ~ 0
       ),
       Cond.treatMT.vs.CNTL = case_when(
         Cond.treat == "Talker-specific" ~ 0,
         Cond.treat == "Multi-talker" ~ 1,
-        Cond.treat == "Single talker" ~ 0,
+        Cond.treat == "Single-talker" ~ 0,
         T ~ 0
       ),
       Cond.treatST.vs.CNTL = case_when(
         Cond.treat == "Talker-specific" ~ 0,
         Cond.treat == "Multi-talker" ~ 0,
-        Cond.treat == "Single talker" ~ 1,
+        Cond.treat == "Single-talker" ~ 1,
         T ~ 0
       ),
       # This numerical coding is used to address question 3 through treatment coding in the
@@ -147,19 +148,19 @@ defineContrasts = function(dataset) {
       Cond.treatTS.vs.MT = case_when(
         Cond.treat == "Talker-specific" ~ 1,
         Cond.treat == "Multi-talker" ~ 0,
-        Cond.treat == "Single talker" ~ 0,
+        Cond.treat == "Single-talker" ~ 0,
         T ~ 0
       ),
       Cond.treatST.vs.MT = case_when(
         Cond.treat == "Talker-specific" ~ 0,
         Cond.treat == "Multi-talker" ~ 0,
-        Cond.treat == "Single talker" ~ 1,
+        Cond.treat == "Single-talker" ~ 1,
         T ~ 0
       ),
       Cond.treatCNTL.vs.MT = case_when(
         Cond.treat == "Talker-specific" ~ 0,
         Cond.treat == "Multi-talker" ~ 0,
-        Cond.treat == "Single talker" ~ 0,
+        Cond.treat == "Single-talker" ~ 0,
         T ~ 1
       ),
       # For the sake of continuity (previously run models), reverse factor order here
@@ -167,19 +168,19 @@ defineContrasts = function(dataset) {
       Cond.diffTS.vs.MT = case_when(
         Cond.diff == "Talker-specific" ~ 3/4,
         Cond.diff == "Multi-talker" ~ -1/4,
-        Cond.diff == "Single talker" ~ -1/4,
+        Cond.diff == "Single-talker" ~ -1/4,
         T ~ -1/4
       ),
       Cond.diffMT.vs.ST = case_when(
         Cond.diff == "Talker-specific" ~ 1/2,
         Cond.diff == "Multi-talker" ~ 1/2,
-        Cond.diff == "Single talker" ~ -1/2,
+        Cond.diff == "Single-talker" ~ -1/2,
         T ~ -1/2
       ),
       Cond.diffST.vs.CNTL = case_when(
         Cond.diff == "Talker-specific" ~ 1/4,
         Cond.diff == "Multi-talker" ~ 1/4,
-        Cond.diff == "Single talker" ~ 1/4,
+        Cond.diff == "Single-talker" ~ 1/4,
         T ~ -3/4
       )
     )
@@ -283,8 +284,8 @@ plot_3effects = function(
         "",
         breaks = effect.names,
         labels = c(
-          expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle talker")),
-          expression(paste(bold("Question 2   "), "Single talker vs.\nControl")),
+          expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle-talker")),
+          expression(paste(bold("Question 2   "), "Single-talker vs.\nControl")),
           expression(paste(bold("Question 1   "), "Multi-talker vs.\nControl")),
           expression(paste(bold("Adaptation   "), "Talker-specific vs.\nControl"))
         )
@@ -462,9 +463,11 @@ plot_predicted_outcome = function(
     xlab("Exposure condition") +
     scale_y_continuous("Proportion of keywords correctly transcribed") +
     scale_colour_manual("Exposure Condition", 
+                        labels = labels.exposure,
                         values = setNames(colors.exposure, levels.exposure), 
                         guide = F) +
     scale_fill_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, levels.exposure), 
                       guide = F) +
     coord_cartesian(ylim = c(0.75,1.0)) +
@@ -474,7 +477,7 @@ plot_predicted_outcome = function(
   ggsave(p, 
          filename = paste0("./figures/exp", experiment, "_predicted outcome_by", paste(groups, collapse = "+") ,".pdf"),
          height = .2 + (if (length(groups) > 0) nrow * 3.5 else 3.5), 
-         width = .5 + (if (length(groups) > 0) (nlevels(m[[groups[1]]]) * 3.5) / nrow else 6))
+         width = .5 + (if (length(groups) > 0) (nlevels(m[[groups[1]]]) * 3.7) / nrow else 6))
   
   return(p)
 }
@@ -515,7 +518,8 @@ d.full %<>%
       T ~ NA_character_
     ),
     PilotParticipant = ifelse(Exp1_subj == "yes", T, F),
-    Condition = factor(Condition2, levels = levels.exposure)
+    Condition = factor(ifelse(Condition2 == "Single talker", "Single-talker", as.character(Condition2)), 
+                       levels = levels.exposure)
   ) %>%
   # Repair exposure talker ID
   arrange(Experiment, Condition, TestTalkerID, TrainingTestSet, ListNum, WorkerID, PartOfExp, Trial) %>%
@@ -530,9 +534,9 @@ d.full %<>%
   mutate(
     TrainingTalkerID = last(TrainingTalkerID), # last, because "training" is sorted after "test"
     TestTalkerID = first(CurrentTalkerID),
-     # Set training talker ID to 0 if the condition is no single talker
+     # Set training talker ID to 0 if the condition is no single-talker
     TrainingUnderTestTalkerID = case_when(
-      Condition == "Single talker" ~ paste(TrainingTalkerID, TestTalkerID, sep = "__"),
+      Condition == "Single-talker" ~ paste(TrainingTalkerID, TestTalkerID, sep = "__"),
       T ~ "0"
     ),
     FirstTrainingTalkerID = gsub("^([A-Z]+\\_[A-Z]+\\_[0-9]+)__.*$", "\\1", TrainingTalkerID)) %>%
@@ -564,7 +568,7 @@ d.full %<>%
 ```{r, new transcription coding, echo = FALSE}
 # Copy column over so we still have a column that will have all the keywords together
 d.full %<>%
-  mutate(Keyword = Keywords) %>%
+  mutate(Keyword = as.character(Keywords)) %>%
   tidyr::separate_rows(Keyword, sep = ",") %>%
   mutate(
     Keyword = trimws(Keyword),
@@ -770,9 +774,11 @@ d.exp1ab.training %>%
     xlab("Trial block during exposure") +
 		scale_y_continuous("Proportion of keywords correctly transcribed") +
     scale_colour_manual("Exposure Condition", 
+                        labels = labels.exposure,
                         values = setNames(colors.exposure, levels.exposure), 
                         guide = F) +
     scale_fill_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, 
                                         levels.exposure), 
                       guide = F) +
@@ -783,11 +789,11 @@ d.exp1ab.training %>%
 ggsave(filename = "./figures/p.exp1ab.training.pdf", device = cairo_pdf, width = 6, height = 4.2, dpi=300)
 ```
 
-Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single talker and talker-specific conditions. Improvement was also \textit{faster} in the multi-talker condition, compared to the single talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single talker (and talker-specific) condition, participants hear the exact \textit{same} 16 recordings five times each (the five trial blocks); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial blocks (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single talker exposure (and perhaps even cross-talker generalization following single talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
+Two results visible in the figure deserve discussion. First, the multi-talker condition exhibits substantially higher ceiling performance at the end of exposure, compared to the single-talker and talker-specific conditions. Improvement was also \textit{faster} in the multi-talker condition, compared to the single-talker and talker-specific conditions (as confirmed by the Bayesian regression presented below). At first blush this might seem surprising---participants in the multi-talker condition have to categorize speech from five \textit{different} talkers, rather than just one talker. It is possible that the difference in performance between single and multi-talker exposure might point to the deployment of different learning mechanisms. An alternative explanation does, however, seem more plausible: in the single-talker (and talker-specific) condition, participants hear the exact \textit{same} 16 recordings five times each (the five trial blocks); in the multi-talker condition, participants hear the same 16 sentences five time each, but each of those five instances corresponds to a different \textit{recording from a different talker}. This means that a difficult-to-understand recording in the single-talker condition will affect participants' performance \textit{five} times, whereas it affects participants' performance in the multi-talker condition only once. Given that there are only 16 unique sentence items, correct recognition of a sentence item likely provides a substantial boost in performance on that sentence item in subsequent trial blocks (dwarfing the disadvantage that results from the fact that the later presentations are recordings from other talkers). If this reasoning is along the right lines, it raises an interesting question for future work: would performance during single-talker exposure (and perhaps even cross-talker generalization following single-talker exposure) be facilitated if listeners are exposed to multiple \textit{different} recordings of the same sentence from the same talker? 
 
 Second, the performance at the beginning of exposure was higher in Experiment 1b, compared to 1a, for both the multi-talker and control condition. The opposite trend held---though less clearly---for the two exposure conditions. It is possible that these differences reflect difference in the audio equipment between Experiments 1a and 1b. In particular, the proportion of participants who used headsets remained identical betwween Experiments 1a and 1b only for the talker-specific condition, but increased for the control and multi-talker conditions---i.e. precisely those conditions for which performance in Experiment 1b seems higher (during the earliest exposure trials), compared to Experiment 1a. Alternatively (or additionally), it is possible that the differences between the two experiments reflect changes in the population that we are recruiting from (about three years passed between recruitment for Experiment 1a and 1b). This possibility is explores in the section on *Performance across time*.
 
-To further analyze these differences, we fit a Bayesian mixed-effects logistic regression to the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single talker condition, and the single talker condition against the control), the trial block (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. The by-talker random intercept captures inter-talker differences in intelligibility, as the stimuli in the first trial block during exposure can come from different talkers, depending both on the condition and the specific list. 
+To further analyze these differences, we fit a Bayesian mixed-effects logistic regression to the combined exposure data from both experiments, predicting transcription accuracy during exposure as a function of experiment (sum-coded: -1 = Experiment 1a vs. 1 = Experiment 1b), the exposure condition (sliding difference-coded comparing the talker-specific condition against the multi-talker condition, the multi-talker condition against the single-talker condition, and the single-talker condition against the control), the trial block (coded from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interactions. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. The by-talker random intercept captures inter-talker differences in intelligibility, as the stimuli in the first trial block during exposure can come from different talkers, depending both on the condition and the specific list. 
 
 The results of the exposure analysis are summarized and visualized below.
 
@@ -867,7 +873,7 @@ Whatever the reason for these differences, it is possible that they confound the
 
 ## Estimating individual differences in performance at the onset of exposure
 
-Our goal was to estimate each individual's performance at the onset of the experiment, before effects of exposure could cause additional individual differences. This, we hope, can capture differences in quality of the audio equipment, differences in the degree to which participants paid attention, etc. We thus fit a Bayesian mixed-effects logistic regression, predicting transcription accuracy during exposure as a function of the exposure condition (*control*, *single talker*, *multi-talker*, and *talker-specific*), the trial block (from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interaction. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. Critically, the model did not contain a predictor for experiment since we are interested in capturing individual differences in participants' performance across the entire sample of participants in Experiments 1a and 1b.
+Our goal was to estimate each individual's performance at the onset of the experiment, before effects of exposure could cause additional individual differences. This, we hope, can capture differences in quality of the audio equipment, differences in the degree to which participants paid attention, etc. We thus fit a Bayesian mixed-effects logistic regression, predicting transcription accuracy during exposure as a function of the exposure condition (*control*, *single-talker*, *multi-talker*, and *talker-specific*), the trial block (from 0 to 4 for the five blocks of 16 sentence recordings during exposure), and their interaction. Additionally, the model contained random intercepts by subject, item, and the current exposure talker, as well as random slopes for exposure condition by item, and random slopes for trial block by participant. Critically, the model did not contain a predictor for experiment since we are interested in capturing individual differences in participants' performance across the entire sample of participants in Experiments 1a and 1b.
 
 In this model, the random intercept by participant provide an estimate of each participants' performance *relative to other participants in the same exposure group* (since exposure condition was included in the model) *during the first trial block* (since the first trial block is coded as 0). These random by-participant intercepts are then used as an offset in the analysis of the test data.
 
@@ -1120,7 +1126,7 @@ m.exp1ab.test.fromTraining.onlyST <- brm(
     1 + individual_training_performance.linear_s +
     (1 | Sentence) + (1 | WorkerID),  
   data = d.exp1ab.test %>% 
-    filter(Cond.diff == "Single talker") %>%
+    filter(Cond.diff == "Single-talker") %>%
     standardize(), 
   family = bernoulli, cores = 4, chains = 4, 
   warmup = nsamples.warmup, iter = nsamples.total, 
@@ -1179,7 +1185,7 @@ d.exp1ab.test %>%
   (function(x) summary(m.exp1ab.test.fromTraining.onlyCNTL)$fixed[2,c(1,3:4)] / x)
 
 d.exp1ab.test %>%
-  filter(Condition == "Single talker") %>%
+  filter(Condition == "Single-talker") %>%
   dplyr::select(individual_training_performance.linear) %>%
   summarise_at(vars(starts_with("individual_training_performance")), function(x) 2 * sd(x)) %>%
   as.numeric() %>%
@@ -1207,11 +1213,11 @@ In the analysis of the test data, we thus include the individual differences in 
 \newpage
 # Test phase - Experiment 1a
 
-In order to address the three questions we ask in the main text (Table 1), we need to compare test performance between the multi-talker and control condition (*Question 1: Is there cross-talker generalization after multi-talker exposure?*), between the single talker and control condition (*Question 2: Is there cross-talker generalization after single talker exposure?*), and the multi-talker and single talker condition (*Question 3: Does multi-talker exposure facilitate cross-talker generalization, compared to single talker exposure?*). 
+In order to address the three questions we ask in the main text (Table 1), we need to compare test performance between the multi-talker and control condition (*Question 1: Is there cross-talker generalization after multi-talker exposure?*), between the single-talker and control condition (*Question 2: Is there cross-talker generalization after single-talker exposure?*), and the multi-talker and single-talker condition (*Question 3: Does multi-talker exposure facilitate cross-talker generalization, compared to single-talker exposure?*). 
 
-To achieve these comparisons, we use `brm()` from the `brms` package to fit Bayesian mixed-effects logistic regression to the test data, predicting the accuracy of participants' responses from the four exposure conditions (control, single talker, multi-talker, talker-specific), and the control predictor for individual differences (see main text for details). The random effect structure was maximal, i.e., random intercepts by subject and item, as well as random slopes for the exposure condition by item (since exposure condition was manipulated between subjects, no by-subject slopes were included).
+To achieve these comparisons, we use `brm()` from the `brms` package to fit Bayesian mixed-effects logistic regression to the test data, predicting the accuracy of participants' responses from the four exposure conditions (control, single-talker, multi-talker, talker-specific), and the control predictor for individual differences (see main text for details). The random effect structure was maximal, i.e., random intercepts by subject and item, as well as random slopes for the exposure condition by item (since exposure condition was manipulated between subjects, no by-subject slopes were included).
 
-All hypothesis tests reported in the paper are based on a model that uses sliding difference-coding for the the exposure conditions. The *sliding difference-coded model* imposes an order among the four conditions (control < single talker < multi-talker < talker-specific exposure), and compares each condition against the next 'lower' condition. The first contrast compares the single talker against the control condition. The second contrast compares the multi-talker against the single talker condition. The third contrast compares the talker-specific against the multi-talker condition. This coding has the advantage the resulting predictors are orthogonal to each other (unlike for, e.g., treatment-coding). The `hypothesis()` function of the `brms` package makes it easy to test hypotheses about sums of effects. For example, the Bayesian hypothesis test for our first question (*Is there cross-talker generalization after multi-talker exposure?*) asks whether the sum of the single talker vs. control effect (resulting from the first sliding difference-coded contrast) plus the multi-talker vs. single talker effect (resulting from the second sliding difference-coded contrast) is larger than zero. The test for our second question (*Is there cross-talker generalization after single talker exposure?*) asks whether the single talker vs. control effect by itself is larger than zero. The test for our third question (*Is there cross-talker generalization after single talker exposure?*) asks whether the multi-talker vs. single talker effect (resulting from the third sliding difference-coded contrast) is larger than zero. And, finally, the hypothesis test for the talker-specific effect---provided for comparison, as it is has been replicated many times across studies---ask whether the sum of all three sliding difference-coded contrasts is larger than zero.
+All hypothesis tests reported in the paper are based on a model that uses sliding difference-coding for the the exposure conditions. The *sliding difference-coded model* imposes an order among the four conditions (control < single-talker < multi-talker < talker-specific exposure), and compares each condition against the next 'lower' condition. The first contrast compares the single-talker against the control condition. The second contrast compares the multi-talker against the single-talker condition. The third contrast compares the talker-specific against the multi-talker condition. This coding has the advantage the resulting predictors are orthogonal to each other (unlike for, e.g., treatment-coding). The `hypothesis()` function of the `brms` package makes it easy to test hypotheses about sums of effects. For example, the Bayesian hypothesis test for our first question (*Is there cross-talker generalization after multi-talker exposure?*) asks whether the sum of the single-talker vs. control effect (resulting from the first sliding difference-coded contrast) plus the multi-talker vs. single-talker effect (resulting from the second sliding difference-coded contrast) is larger than zero. The test for our second question (*Is there cross-talker generalization after single-talker exposure?*) asks whether the single-talker vs. control effect by itself is larger than zero. The test for our third question (*Is there cross-talker generalization after single-talker exposure?*) asks whether the multi-talker vs. single-talker effect (resulting from the third sliding difference-coded contrast) is larger than zero. And, finally, the hypothesis test for the talker-specific effect---provided for comparison, as it is has been replicated many times across studies---ask whether the sum of all three sliding difference-coded contrasts is larger than zero.
 
 Since some readers might be more familiar with treatment-coding, we also present a *treatment-coded model* that compares each condition against the control condition as baseline. The first contrast compares the talker-specific condition against the control. The second contrast compares the multi-talker condition against the control. The third contrast compares the single-talker condition against the control. The treatment-coded model differed from the sliding difference-coded model only in terms of the contrasts employed for the exposure conditions.
 
@@ -1293,8 +1299,12 @@ plot_base =
   stat_summary(fun.data = mean_cl_boot, geom = "errorbar", 
                width = 0.2, linetype = 1, size = 1, position = position_dodge(.9)) +
   scale_x_discrete("Exposure condition") +
-  scale_colour_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
-  scale_fill_manual("Exposure Condition", values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
+  scale_colour_manual("Exposure Condition", 
+                      labels = labels.exposure,
+                      values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
+  scale_fill_manual("Exposure Condition", 
+                    labels = labels.exposure,
+                    values = setNames(colors.exposure, levels.exposure), guide=FALSE) +
   theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
 
 p.test.proportion = plot_base + 
@@ -1570,7 +1580,7 @@ summary(m.exp1ab.noAdditionalPredictors.test.diff)
 
 The code for the replication analysis was developed based on invaluable input by Stephen Martin (see Stan discourse forum at \url{https://discourse.mc-stan.org/t/questions-about-bayesian-replication-test/7450/3}). All errors remain our own. If you develop replication analyses from these scripts, we would appreciate if you cite the article as the source.
 
-For the replication analysis, we use treatment-coded models, rather sliding difference-coded models. We do so because the replication analysis requires comparison of the full models (of Experiment 1b) against models with the effects of interest removed---in order to set those effects to zero (also for Experiment 1b; see Appendix E in the main text). This is most straightforwardly done in the treatment-coded models. For questions 1-2, we use the control condition as reference baseline for the treatment coding. For questions 3, we use the single talker condition as reference baseline, so that the multi-talker treatment effect in that model corresponds to the difference between multi-talker and single talker exposure. 
+For the replication analysis, we use treatment-coded models, rather sliding difference-coded models. We do so because the replication analysis requires comparison of the full models (of Experiment 1b) against models with the effects of interest removed---in order to set those effects to zero (also for Experiment 1b; see Appendix E in the main text). This is most straightforwardly done in the treatment-coded models. For questions 1-2, we use the control condition as reference baseline for the treatment coding. For questions 3, we use the single-talker condition as reference baseline, so that the multi-talker treatment effect in that model corresponds to the difference between multi-talker and single-talker exposure. 
 
 
 
@@ -1792,7 +1802,7 @@ bf.ST.vs.CNTL
 
 ### Questions 3
 
-To test replication of Question 3, we are recoding all treatment contrasts so that the  single talker condition is the baseline. This allows us to assess replication of the treatment effect of the multi- talker condition, compared to the  single talker baseline.
+To test replication of Question 3, we are recoding all treatment contrasts so that the  single-talker condition is the baseline. This allows us to assess replication of the treatment effect of the multi- talker condition, compared to the  single-talker baseline.
 
 ```{r, replication analysis with treatment coding for Question 3}
 ## +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -1969,8 +1979,8 @@ p = d.m %>%
     "",
     breaks = effects,
     labels = c(
-      expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle talker")),
-      expression(paste(bold("Question 2   "), "Single talker vs.\nControl")),
+      expression(paste(bold("Question 3   "), "Multi-talker vs.\nSingle-talker")),
+      expression(paste(bold("Question 2   "), "Single-talker vs.\nControl")),
       expression(paste(bold("Question 1   "), "Multi-talker vs.\nControl")),
       expression(paste(bold("Adaptation   "), "Talker-specific vs.\nControl"))
     )) +
@@ -2067,12 +2077,12 @@ ggsave(filename = "./figures/replication_Q123_effects_wInset.pdf", width = 10, h
 \newpage
 # Consequences of by-talker variability (Experiments 1a and 1b)
 
-Unlike the original study by Bradlow and Bent (2008), our replication included multiple (4) test talkers and many exposure-test talker combinations (20 for the single talker condition, 4 each for the control, multi-talker and talker-specific conditions). This allows us to begin to assess the consequences of cross-talker variability on the effects of exposure. We present additional analyses that account for cross-talker differences, allowing us to assess whether our conclusions would differ if Experiments 1a and 1b had only used a subset of the exposure and test talkers. In particular, we ask two questions:
+Unlike the original study by Bradlow and Bent (2008), our replication included multiple (4) test talkers and many exposure-test talker combinations (20 for the single-talker condition, 4 each for the control, multi-talker and talker-specific conditions). This allows us to begin to assess the consequences of cross-talker variability on the effects of exposure. We present additional analyses that account for cross-talker differences, allowing us to assess whether our conclusions would differ if Experiments 1a and 1b had only used a subset of the exposure and test talkers. In particular, we ask two questions:
 
  + Can *limiting the experiment to one test talker* change the results, compared to having four test talkers?
  + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
 
-We address these questions through additional Bayesian mixed-effects logistic regression, repeating the analyses presented in the main text while including random effects by test talker or exposure-test talker combination. These analyses reveal substantial quantitative---though, at least for our relatively homogenous set of talkers, not *necessarily* qualitative---variability in ou results, depending on the exposure and test talkers. As would be expected, this variability is particularly evident for the single talker and talker-specific conditions, the conditions for which exposure involved only a single talker. In particular, the effect of single talker exposure can vary *qualitatively* depending on the combination of exposure and test talker. <!-- CHECK --> 
+We address these questions through additional Bayesian mixed-effects logistic regression, repeating the analyses presented in the main text while including random effects by test talker or exposure-test talker combination. These analyses reveal substantial quantitative---though, at least for our relatively homogenous set of talkers, not *necessarily* qualitative---variability in ou results, depending on the exposure and test talkers. As would be expected, this variability is particularly evident for the single-talker and talker-specific conditions, the conditions for which exposure involved only a single-talker. In particular, the effect of single-talker exposure can vary *qualitatively* depending on the combination of exposure and test talker. <!-- CHECK --> 
 
 This highlights the need for future work to either employ stimuli from multiple talkers, or to appropriately caveat the conclusions drawn from experiments that are based on a very small number of talkers. Put differently, it is to be expected that individual experiments---in particular if they are based on only one exposure and/or test talker---will return different results *even if the experiments employ an adequate number of subjects and items*. Such differences in results do not necessarily reflect empirical conflicts, but might quite simply capture that cross-talker generalization is, or is not, observed after exposure to the *particular* combination of exposure and test talkers. This point deserves emhasis, in particular, given the field's reliance on, and frequent misinterpretation of, the notion of significance: this 'significance filter' (Vasishth, 2018) can misleadingly further the impression that results conflict even when effects across pattern in identical ways. To make things worse, apparent qualitative differences in results between experiments---sometimes within the same paper---are not infrequently used to motivate ad-hoc theorizing. The present results suggest that research on speech perception ought to first ask whether differences in results are simply the consequence of using different combinations of talkers.
 
@@ -2082,7 +2092,7 @@ Next, we assess the degree of *overconfidence* that results from experiments wit
  
 For this, we analyze subsets of our data that only include one test talker with the same approach as in the main text, and compare the uncertainty about the effect of exposure to results based on the same total amount of data from all four test talkers. The results highlight that the use of a single test talker might make it *appear* as if one can be more certain about the results, but that this relative certainty about the effect of exposure is misleading: with one test talker, researchers simply do not know how much the results would vary if multiple test talkers were considered, and thus researchers might feel overconfident that their striking results will generalize to other talkers.
 
-This leads us to the final analysis in thise section. The use of multiple exposure and test talkers also lets us assess the generalizability of our results beyond the specific exposure and test talkers employed in Experiments 1a and 1b. We use the Bayesian mixed-effects logistic regressions with random effects by exposure and test talkers to quantify how much our certainty about the effect of exposure increases if our analyses acknowledge exposure and/or test talkers as sources of random variability. We find, for example, that the standard error for the effect of single talker exposure increases three-fold <!-- CHECK --> if exposure-test talker combinations are acknowledged as a source of random variability. This further illustrates the need for studies on speech perception---and other domains of the psychological sciences that involve social or socially-conditioned inferences---to use stimuli that come from multiple talkers, and analyses that capture this variability adequately.
+This leads us to the final analysis in thise section. The use of multiple exposure and test talkers also lets us assess the generalizability of our results beyond the specific exposure and test talkers employed in Experiments 1a and 1b. We use the Bayesian mixed-effects logistic regressions with random effects by exposure and test talkers to quantify how much our certainty about the effect of exposure increases if our analyses acknowledge exposure and/or test talkers as sources of random variability. We find, for example, that the standard error for the effect of single-talker exposure increases three-fold <!-- CHECK --> if exposure-test talker combinations are acknowledged as a source of random variability. This further illustrates the need for studies on speech perception---and other domains of the psychological sciences that involve social or socially-conditioned inferences---to use stimuli that come from multiple talkers, and analyses that capture this variability adequately.
 
 
 ## Do differences between test talkers affect the conclusions one would draw?
@@ -2165,7 +2175,7 @@ plot_predicted_outcome(
   experiment = "1a")
 ```
 
-We can also conduct the Bayesian hypothesis tests for Questions 1-3 separately for each test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
+We can also conduct the Bayesian hypothesis tests for Questions 1-3 separately for each test talker. Qualitatively, we find that that, four all four test talkers, the effects of all four comparisons went in the same direction---i.e., exposure always had *positive* effects on comprehension accuracy. We further find the same ordering of effect sizes for the four comparisons of exposure conditions for three out of the four test talkers (for the fourth test talker, the relative effect sizes for questions 2 and 3 order differently). The same holds for ordering of the strength of evidence (Bayes factors).  However, talker-specific adaptation was the only effect that reached *strong* support for all four test talkers. Generalization after multi-talker exposure received strong support for three out of the four test talkers, and positive support on the fourt test talker. Generalization after single-talker exposure received strong support for only one out of the four test talkers, and positive support for the other three test talkers. Overall, test talker 032 and 037 showed the strongest effects, and test talker 034 showed the weakest effects.
 
 ```{r}
 plot_3effects(m.exp1a.test.diff.wTestTalker, "Experiment 1a by test talker", 
@@ -2192,7 +2202,7 @@ table_3effects(m.exp1a.test.diff.wTestTalker,
 
 
 ### Experiment 1b
-We first quantify how the overall result of exposure differs depending on the test talker. As in Experiment 1a, exposure always had *positive* effects on comprehension accuracy. The relative effect sizes order the same way as in Experiment 1a for two of the test talkers (032 and 035), but not the other two test talkers. The most striking difference is found for test talker 037, which exhibited the second strongest support for generalization after single talker exposure in Experiment 1a, but only exhibited positive support in Experiment 1b.
+We first quantify how the overall result of exposure differs depending on the test talker. As in Experiment 1a, exposure always had *positive* effects on comprehension accuracy. The relative effect sizes order the same way as in Experiment 1a for two of the test talkers (032 and 035), but not the other two test talkers. The most striking difference is found for test talker 037, which exhibited the second strongest support for generalization after single-talker exposure in Experiment 1a, but only exhibited positive support in Experiment 1b.
 
 ```{r, fig.height=3.5, fig.width=15}
 plot_predicted_outcome(
@@ -2307,12 +2317,12 @@ To address our second question:
 
  + Can *failing to balance the exposure talkers* across the single and multi-talker conditions (as in Bradlow and Bent, 2008) change the results, compared to fully balanced lists (as in the present experiments)? 
 
-we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts by the combination of exposure and test talker (coded as "0" for all but the single talker condition). This was done in addition to the random intercepts and slopes by test talker added in the previous section. This added one additional parameter to the analysis (the standard deviation of the random intercept by combination of exposure and test talker) to model the 21 unique random intercepts (20 unique combinations of exposure and test talker in the single talker condition + "0"). By adding a random intercept by combination of exposure and test talker, rather than by exposure talker, we can capture that the same exposure talker might have a different effect on transcription accuracy during test depending on the test talker. This avoids the assumption that the effects of exposure and test talkers are independent of each other.^[Note that it was impossible to include random slopes for the exposure condition by combination of exposure and test talker since exposure condition varied *between* combinations of exposure and test talker.]
+we fit an additional sliding difference-coded Bayesian mixed-effects logistic regressions to each of Experiment 1a and 1b. This analysis further added random intercepts by the combination of exposure and test talker (coded as "0" for all but the single-talker condition). This was done in addition to the random intercepts and slopes by test talker added in the previous section. This added one additional parameter to the analysis (the standard deviation of the random intercept by combination of exposure and test talker) to model the 21 unique random intercepts (20 unique combinations of exposure and test talker in the single-talker condition + "0"). By adding a random intercept by combination of exposure and test talker, rather than by exposure talker, we can capture that the same exposure talker might have a different effect on transcription accuracy during test depending on the test talker. This avoids the assumption that the effects of exposure and test talkers are independent of each other.^[Note that it was impossible to include random slopes for the exposure condition by combination of exposure and test talker since exposure condition varied *between* combinations of exposure and test talker.]
 
 ### Experiment 1a
-We first plot the predicted transcription accuracy during test for each of the four exposure conditions, depending on the exposure and test talker. The five different exposure talkers for the single talker condition of each test talker are shown as separate pointranges. Within each test talker, the exposure talkers are alphanumerically sorted in ascending order from left to right. For example, for test talker 035, the five point ranges correspond to (from left to right): 016, 021, 032, 037, and 043.
+We first plot the predicted transcription accuracy during test for each of the four exposure conditions, depending on the exposure and test talker. The five different exposure talkers for the single-talker condition of each test talker are shown as separate pointranges. Within each test talker, the exposure talkers are alphanumerically sorted in ascending order from left to right. For example, for test talker 035, the five point ranges correspond to (from left to right): 016, 021, 032, 037, and 043.
 
-This plot shows that there is substantial variability across the combinations of exposure and test talkers. Even within each test talker, there is substantial variability across the different exposure talkers in the single talker condition. At the same time, the analysis suggests high uncertainty about the predicted transcription accuracy in the single talker condition. This is not surprising given that each experiment only had four participants for each unique combination of exposure and test talker in the single talker condition. We thus do not necessarily expect the same pattern of differences in the Experiment 1b.
+This plot shows that there is substantial variability across the combinations of exposure and test talkers. Even within each test talker, there is substantial variability across the different exposure talkers in the single-talker condition. At the same time, the analysis suggests high uncertainty about the predicted transcription accuracy in the single-talker condition. This is not surprising given that each experiment only had four participants for each unique combination of exposure and test talker in the single-talker condition. We thus do not necessarily expect the same pattern of differences in the Experiment 1b.
 
 ```{r, fig.height=3.5, fig.width=15}
 plot_predicted_outcome(
@@ -2323,7 +2333,7 @@ plot_predicted_outcome(
   experiment = "1a")
 ```
 
-Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the results for talker-specific adaptation and Question 1 (comparing the multi-talker condition against the control) do not change much. The results for Questions 2 and 3, however, exhibit somewhat larger changes in the updated model---presumably because both of these questions depend on the predicted mean of the single talker condition. Overall, the results are pretty much the same as in the model in the previous section, except that we now do not any longer have strong support for a positive answer to Question 2 in any of the four different test talkers (whereas there was strong support for a positive answer for test talker 035 in the model withtout random effects by exposure-test talker combination.
+Next, we plot the Bayesian hypotheses tests for Questions 1-3. Note that the results for talker-specific adaptation and Question 1 (comparing the multi-talker condition against the control) do not change much. The results for Questions 2 and 3, however, exhibit somewhat larger changes in the updated model---presumably because both of these questions depend on the predicted mean of the single-talker condition. Overall, the results are pretty much the same as in the model in the previous section, except that we now do not any longer have strong support for a positive answer to Question 2 in any of the four different test talkers (whereas there was strong support for a positive answer for test talker 035 in the model withtout random effects by exposure-test talker combination.
 
 ```{r, fig.height=20, fig.width=20}
 table_3effects(m.exp1a.test.diff.wExposure_crossed_with_TestTalker,
@@ -2472,7 +2482,7 @@ Once we consider the full uncertainty about test talkers, the only effect for wh
 
 This is not *necessarily* a problem. First, if a field (for example, psychophysics) has thoroughly determined that this assumption of cross-participant or cross-talker generalization is likely to hold (for a set of behavioral variables under investigation), making such an assumption in any given experiment constitutes one of many simplifying assumptions made for the sake of being able to draw *any* conclusions. %However, this has not yet been established for speech perception (and many other fields involving higher-level cognition). %For fields such as speech perception, and other domains of the psychological sciences that investigate social or socially-conditioned inferences, however, using stimuli from multiple members of the population (e.g., multiple talkers) can be important if the goal is to adequately capture this source of variability. 
 
-Second, many theoretical questions in the cognitive sciences are tested by assessing the *existence* of certain effects, rather than whether they are always detectable. Even a mechanism that is always operating and central to perception is *not* expected to yield detectable consequences under all circumstances. For the research question at hand, for example, we do not expect similarity-based generalization to always yield successful generalization. In fact, as we have outlined above, this hypothesis predicts that generalization will only yield detectable evidence of cross-talker generalization when the talkers are sufficiently similar. For the present purpose, the critical question is not whether we would find cross-talker generalization after exposure to any single talker with the same accent, but rather whether we find such generalization when predicted. 
+Second, many theoretical questions in the cognitive sciences are tested by assessing the *existence* of certain effects, rather than whether they are always detectable. Even a mechanism that is always operating and central to perception is *not* expected to yield detectable consequences under all circumstances. For the research question at hand, for example, we do not expect similarity-based generalization to always yield successful generalization. In fact, as we have outlined above, this hypothesis predicts that generalization will only yield detectable evidence of cross-talker generalization when the talkers are sufficiently similar. For the present purpose, the critical question is not whether we would find cross-talker generalization after exposure to any single-talker with the same accent, but rather whether we find such generalization when predicted. 
 
 
 ## Full model summaries
@@ -2746,11 +2756,11 @@ Total number of models that needed to be fit: `r n.models`.
 load("./data/Talker-similarity.RData")
 ```
 
-One hypothesis is that listeners benefit from single talker exposure when the exposure and test talker are *similar* to each other. Experiment 1a and 1b both provide data on 20 unique combinations of exposure and test talkers in the single talker condition. It is thus theoretically possible to test whether similarity between the exposure and test talker predicts participants' transcription accuracy during test.
+One hypothesis is that listeners benefit from single-talker exposure when the exposure and test talker are *similar* to each other. Experiment 1a and 1b both provide data on 20 unique combinations of exposure and test talkers in the single-talker condition. It is thus theoretically possible to test whether similarity between the exposure and test talker predicts participants' transcription accuracy during test.
 
 An adequate assessement of this possibility is beyond the scope of this paper. We did, however, explore two (overly simplistic) approaches to measuring similarity: a) subjective ratings of similarity obtained from an independent set of participants and b) the objective similarity between talkers in terms of their segmental phonetics. In both cases, our approach is best understood as a very coarse-grained approximation of the relevant quantity, based on what was feasible within the scope of this project. For example, our approximation of the objective similarity of talkers' phonetics is based on only their vowel productions (in addition to other limitations). 
 
-Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily rely on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not *necessarily* predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitates accurate perception of another talker.
+Below we describe the two types of similarity measures, how they were obtained, and whether they predict talker-to-talker generalization in the single-talker condition. To anticipate the results, neither of the two measures is predictive of transcription accuracy during test in the single-talker condition. For our `objective similarity' measure, there is clear evidence that our approach fails to approximate the true objective similarity of the talkers' phonetics in any relevant way, making this test uninformative. For the subjective similarity ratings, the problem seems to be a different one. Our findings suggest that participants are able to judge the perceived similarity of talkers, and these judgments suggests that some of our exposure and test talkers are perceived as substantially more similar than others. However, we find that these subjective similarity ratings seem to primarily rely on basic suprasegmental speech properties, such as the talkers' fundamental frequency (F0). Since these properties are not *necessarily* predictive of how talkers realize segments and words, it is perhaps not surprising that this measure turns out not to reliably predict how much exposure to one talker facilitates accurate perception of another talker.
 
 We nevertheless report our approach and findings here, primarily for two reasons. First, good reporting standard dictates that we report all tests we conducted. Second, we hope that the approaches explored here---flawed as they are---can be informative for other reseachers interested in similar questions.
 
@@ -2784,7 +2794,7 @@ options(width = 1000)
 
 # Prepare test data for join with similarity data
 d.for_sim = d.exp1ab.test %>%
-  filter(Condition %in% c("Single talker", "Talker-specific")) %>%
+  filter(Condition %in% c("Single-talker", "Talker-specific")) %>%
   mutate(
     TalkerPair = paste(
       gsub("^.*([0-9]{3})$", "\\1", TrainingTalkerID), 
@@ -2815,7 +2825,7 @@ d.sim.subj =
   ungroup()
 ```
 
-The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The four talkers to the right of the dividing line are the self-similarity ratings for the four talkers used during test---i.e., the similarity between exposure and test talker that participants in the talker-specific condition would experience. To the left of the dividing line are similarity ratings for all 20 combinations of exposure and test talker experienced by participants in the single talker condition. Unsurprisingly, acoustically identical sentences from the same talker were given the highest similarity ratings. While there was substantial variability in similarity ratings (reflected in the confidence intervals), the results also suggest that some of the exposure and test talkers were rated to be significantly more similar to each other than others. For example, the mean similarity ratings for the least similar talker pairs fall outside of the 95\% confidence intervals for the most similar talker pairs.
+The following figure shows the mean similarity ratings and 95% bootstrapped confidence interval for each combination of exposure and test talkers. The four talkers to the right of the dividing line are the self-similarity ratings for the four talkers used during test---i.e., the similarity between exposure and test talker that participants in the talker-specific condition would experience. To the left of the dividing line are similarity ratings for all 20 combinations of exposure and test talker experienced by participants in the single-talker condition. Unsurprisingly, acoustically identical sentences from the same talker were given the highest similarity ratings. While there was substantial variability in similarity ratings (reflected in the confidence intervals), the results also suggest that some of the exposure and test talkers were rated to be significantly more similar to each other than others. For example, the mean similarity ratings for the least similar talker pairs fall outside of the 95\% confidence intervals for the most similar talker pairs.
 
 The second plot splits up these ratings by test talker and sentence set (which 16 of the 32 sentences were used during test, rather than exposure). Overall, the similarity ratings for pairs of exposure and test talker are relatively robust to which sentences (and thus recordings) were used during test: the ordering of talker combinations does not differ *much* between the first and second row of panels But there are are some instances in which the relative similarity of the exposure and test talker depends on the sentence. For example, the three least similar exposure talkers for test talker 043 seem to only differ in the relative similarity with regard to Set 2. Similarly, the second most similar exposure talker for test talker 032 either groups with the most similar or the next most similar exposure talker, depending on whether similarity was rated with regard to Set 1 or 2.
 
@@ -2852,17 +2862,17 @@ We do not know what exactly these similarity scores reflect---i.e., which proper
 
 Indeed, there is some evidence that this is the case here. A multi-dimensional scaling analysis revealed two latent dimensions along which the six talkers differed. We extracted talker's mean pitch (F0) from the recordings used in the experiment, and found that the ordering of talkers' pitch closely correlates with the ordering of talkers on the first latent dimension:
 
-![Multi-dimensional scaling (MDS) of similarity ratings. The first two latent dimensions derived from MDS are shown. The six talkers used (between-participants) during exposure in the single talker condition are shown in this space. For comparison the first dimension is plotted against the mean F0 of the six talkers (extracted from the recordings from each talker used during exposure).](../figures/multi-dimensional-scaling.png)
+![Multi-dimensional scaling (MDS) of similarity ratings. The first two latent dimensions derived from MDS are shown. The six talkers used (between-participants) during exposure in the single-talker condition are shown in this space. For comparison the first dimension is plotted against the mean F0 of the six talkers (extracted from the recordings from each talker used during exposure).](../figures/multi-dimensional-scaling.png)
 
 This result has to be interpreted with caution, of course, since we only have six different talkers here. It does, however, provide *a priori* reason to expect the subjective similarity ratings to *not* be a good predictor of successful generalization from the exposure to the test talker. Even if listeners do use supra-segmental features to generalize experience from exposure to test, this generalization will only facilitate listeners' performance during test to the extent that the exposure and test talker are indeed similar in how they realize sound categories and words.
 
-### Predicting talker-to-talker generalization in the single talker condition
+### Predicting talker-to-talker generalization in the single-talker condition
 
 ```{r subject similarity analysis}
 run_subjective_similarity_analysis = function(
   d, 
   experiment = c("1a", "1b"), 
-  condition = "Single talker",
+  condition = "Single-talker",
   filename,
   # should the data be aggregated at the level of unique combinations of
   # talker pair and set?
@@ -2907,7 +2917,7 @@ m.exp1b.subjective_similarity.ST = run_subjective_similarity_analysis(
 
 To analyze whether subjective similarity between the exposure and test talker predicts the accuracy during test, we calculated the mean similarity rating for each unique combination of the 20 different pairs of exposure and test talker, and the two different exposure-test sentence sets. 
 
-We then fit a Bayesian mixed-effect logistic regression to just the test data from the single talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
+We then fit a Bayesian mixed-effect logistic regression to just the test data from the single-talker condition. Separate analyses were performed for Experiments 1a and 1b. We predict sentence-level accuracy during test from the mean subjective similarity scores for each exposure-test talker combination (centered and scaled by twice its standard deviations, following Gelman, 2008). Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant.
 
 For Experiment 1a, there is positive support for the the hypothesis that the subjective similarity between the exposure and test talker predicts the accuracy during test:
 
@@ -2967,12 +2977,12 @@ d.sim.obj =
         modelType = plyr::mapvalues(
           modelType,
           c("ST", "TS"),
-          c("Single talker", "Talker-specific")
+          c("Single-talker", "Talker-specific")
         ),
         Set = gsub("^.*([0-9])$", "Test set \\1", TrainingTestSet)
       ) %>%
       filter(
-        modelType %in% c("Single talker", "Talker-specific"),
+        modelType %in% c("Single-talker", "Talker-specific"),
         Condition == "Non-control",
         cues == "Lobanov Normalized F1xF2"
       ) %>%
@@ -3002,7 +3012,7 @@ To determine the similarity between talkers within each talker pair, we ask how 
 
 ### Summary of ideal observer-derived accuracies
 
-The following plots show the predicted accuracy of an ideal observer applied to the vowels of the test talker, based on training on the vowels of the exposure talker. The six talkers to the right of the dividing line correspond to the talker-specific condition. To the left of the dividing line are predicted accuracies for all 20 combinations of exposure and test talker in the single talker condition. What is striking is that accuracy is *not* always highest in the talker-specific condition, despite the fact that in this case the exposure stimuli that the model is trained on come from the same talker as the test stimuli that the model is tested on. This provides strong evidence that the models are overfit to the training data, presumably because we simply do not have sufficiently many instances of the different vowels in the training data. In line with this hypothesis, the relative ordering of the different single talker models differs quite a bit depending on which set of sentences was used for training and which set was used for test (see second plot).
+The following plots show the predicted accuracy of an ideal observer applied to the vowels of the test talker, based on training on the vowels of the exposure talker. The six talkers to the right of the dividing line correspond to the talker-specific condition. To the left of the dividing line are predicted accuracies for all 20 combinations of exposure and test talker in the single-talker condition. What is striking is that accuracy is *not* always highest in the talker-specific condition, despite the fact that in this case the exposure stimuli that the model is trained on come from the same talker as the test stimuli that the model is tested on. This provides strong evidence that the models are overfit to the training data, presumably because we simply do not have sufficiently many instances of the different vowels in the training data. In line with this hypothesis, the relative ordering of the different single-talker models differs quite a bit depending on which set of sentences was used for training and which set was used for test (see second plot).
 
 This strongly suggests that **the measure of objective similarity we have developed here is a *bad* approximation of the true objective similarity of the vowel statistics.** We therefore would *not* expect this measure to be predictive of transcription accuracy during test.
 
@@ -3034,14 +3044,14 @@ ggsave(filename = "./figures/similarity-objective-by test talker.pdf",
        width = 6, height = 7)
 ```
 
-### Predicting talker-to-talker generalization in the single talker condition
-Following the same Bayesian mixed-effects regression approach that we applied to the analysis of subjective similarity scores, we predicted sentence-level accuracy during test in the single talker condition from the objective similarity scores. Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant. We calculated each participants' objective similarity score---i.e., the average ideal observer-predicted accuracy during test--- and transformed it into logits (to use the same units as the outcome we are aiming to predict: transcription accuracy). We then centered and scaled this predictor by twice its standard deviations (following Gelman, 2008). 
+### Predicting talker-to-talker generalization in the single-talker condition
+Following the same Bayesian mixed-effects regression approach that we applied to the analysis of subjective similarity scores, we predicted sentence-level accuracy during test in the single-talker condition from the objective similarity scores. Following the main analysis, the model contained an offset term, correcting for individual differences that were already present during the exposure phase. Also following the main analysis, the model contained the maximum random effect structure---in this case, random intercepts by item and by participant. We calculated each participants' objective similarity score---i.e., the average ideal observer-predicted accuracy during test--- and transformed it into logits (to use the same units as the outcome we are aiming to predict: transcription accuracy). We then centered and scaled this predictor by twice its standard deviations (following Gelman, 2008). 
 
 ```{r objective similarity analysis}
 run_objective_similarity_analysis = function(
   d, 
   experiment = c("1a", "1b"), 
-  condition = "Single talker",
+  condition = "Single-talker",
   filename,
   # should the data be aggregated at the level of unique combinations of
   # talker pair and set?
@@ -3123,6 +3133,7 @@ d.exp1ab.training %>%
   scale_x_log10("Days since first data collection") +
   scale_y_continuous("Proportion of keywords correctly transcribed") +
   scale_colour_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, levels.exposure)) +
   theme(legend.position = "bottom")
 ggsave(filename = "./figures/Change in exposure performance (1st Quintile) over submit times.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
@@ -3138,6 +3149,7 @@ d.exp1ab.training %>%
   scale_x_log10("Days since first data collection") +
   scale_y_continuous("Empirical logits of correctly transcribed") +
   scale_colour_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, levels.exposure)) +
   theme(legend.position = "bottom")
 ggsave(filename = "./figures/Change in exposure performance (1st Quintile) over submit times-emplogit.pdf", device = cairo_pdf, width = 6.5, height = 4.2, dpi=300)
@@ -3157,6 +3169,7 @@ d.exp1ab.test %>%
   scale_x_log10("Days since first data collection") +
   scale_y_continuous("Proportion of keywords correctly transcribed") +
   scale_colour_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, levels.exposure)) +
   theme(legend.position = "bottom")
   
@@ -3173,6 +3186,7 @@ d.exp1ab.test %>%
   scale_x_log10("Days since first data collection") +
   scale_y_continuous("Empirical logits of correctly transcribed") +
   scale_colour_manual("Exposure Condition", 
+                      labels = labels.exposure,
                       values = setNames(colors.exposure, levels.exposure)) +
   theme(legend.position = "bottom")
   
@@ -3355,11 +3369,11 @@ d.order %>%
   distinct()
 ```
 
-As in Experiments 1a and 1b, we recruited data for all possible combinations of exposure and test talkers in the single talker condition. Since we have a total of six talkers to choose from (as in Experiments 1 an and 1b) but only three test talkers for Experiment 2 (rather than four), this resulted in 15 unique combinations:
+As in Experiments 1a and 1b, we recruited data for all possible combinations of exposure and test talkers in the single-talker condition. Since we have a total of six talkers to choose from (as in Experiments 1 an and 1b) but only three test talkers for Experiment 2 (rather than four), this resulted in 15 unique combinations:
 
 ```{r}
 d.order %>%
-  filter(Condition %in% "Single talker") %>%
+  filter(Condition %in% "Single-talker") %>%
   group_by(Condition) %>%
   dplyr::select(TrainingTalkerID, TestTalkerID) %>%
   distinct()
@@ -3378,7 +3392,7 @@ d.exp1a.test.sub =
   d.exp1a.test %>%
   filter(
     TestTalkerID != "CMN_M_035",
-    Condition %in% c("Single talker", "Multi-talker")) %>%
+    Condition %in% c("Single-talker", "Multi-talker")) %>%
   droplevels() %>%
   group_by(Condition, TestTalkerID, TrainingTestSet) 
 
@@ -3411,7 +3425,7 @@ ggsave(p, filename = "./figures/p.exp2.emplogit.pdf", device = cairo_pdf, width 
 
 ### Discussion
 
-The results of this comparison do indeed suggest that multi-talker exposure might benefit from increased variability during exposure. No such benefit was observed for single talker exposure. Since these results are based on a rather small number of participants, they should be interpreted with caution. Taken at face value, these results are problematic for the assumption that variability always facilitates cross-talker generalization.
+The results of this comparison do indeed suggest that multi-talker exposure might benefit from increased variability during exposure. No such benefit was observed for single-talker exposure. Since these results are based on a rather small number of participants, they should be interpreted with caution. Taken at face value, these results are problematic for the assumption that variability always facilitates cross-talker generalization.
 
 # Session info
 ```{r session_info, include=TRUE, echo=TRUE, results='markup'}
